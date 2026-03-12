@@ -1,3 +1,10 @@
+<<<<<<< HEAD
+# GlobalGB
+
+```
+conda create -n global_gb python=3.12
+conda activate global_gb
+=======
 # Accelerated global Galactic binary search algorithm
 
 The parameter estimate of Galactic binaries (GBs) is split into two parts. The first part extracts the best fitting GBs in the provided data set based on a differential evolution search algorithm. The second part uses the GBGPU, https://github.com/mikekatz04/GBGPU, to quickly sample across a reduced parameter space around the maximum likelihood estimate from the first steps. That way we are able to obtain a posterior distribution of a found GB within 2 seconds on a laptop grade GPU. 
@@ -28,21 +35,57 @@ To install this software for use with NVIDIA GPUs (compute capability >2.0), you
 ```
 conda create -n ldc-gpu -c conda-forge gcc_linux-64 gxx_linux-64 gsl numpy Cython scipy h5py matplotlib python=3.9
 conda activate ldc-gpu
+>>>>>>> master
 ```
 
-    If on MACOSX, substitute `gcc_linux-64` and `gxx_linus-64` with `clang_osx-64` and `clangxx_osx-64`.
-
-2) If using GPUs, use pip to [install cupy](https://docs-cupy.chainer.org/en/stable/install.html) and make sure you have cudatoolkit installed. If you have cuda version 11, for example:
-
 ```
-conda install -c conda-forge cudatoolkit=11.2.2 cudnn=8.1.0
-pip install cupy-cuda11x
-```
-
-4) Install requirements and run install. Make sure CUDA is on your PATH.
-
-```
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/
 pip install -r requirements.txt
+uv pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ mojito-processor
+```
+
+
+
+# Install LISAanalysistools
+```
+# For CPU-only version
+pip install lisaanalysistools
+
+# For GPU-enabled versions with CUDA 11.Y.Z
+pip install lisaanalysistools-cuda11x
+
+# For GPU-enabled versions with CUDA 12.Y.Z
+pip install lisaanalysistools-cuda12x
+```
+
+
+
+# Install LISAonGPU
+
+1. Change the folder.
+```
+cd ..
+cd lisa-on-gpu
+```
+2. Run setup.py
+```
 python setup.py install
 ```
+
+# Install Eryn
+```
+pip install eryn
+```
+
+# Install LDC
+
+'''
+conda install gsl fftw
+pip install lisa-data-challenge
+'''
+
+# Install BBhx
+
+'''
+pip install bbhx-cuda12x
+'''
+

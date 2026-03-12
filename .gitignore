@@ -1,9 +1,0 @@
-*.o
-*~
-*.a
-*.xml
-*__pycache__*
-ldc/waveform/imrphenomD/pyIMRPhenomD.c
-*.npy
-*.npz
-*.h5
