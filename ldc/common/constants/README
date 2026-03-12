@@ -1,6 +1,0 @@
-Cosmology is provided by astropy.
-
-Physical constants are provided by the lisa-constant package
-(https://gitlab.in2p3.fr/lisa-simulation/) for consistency with other
-LISA tools used in pipelines.
-
