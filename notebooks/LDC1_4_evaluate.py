@@ -25,7 +25,7 @@ from ldc.common.series import TimeSeries
 import ldc.waveform.fastGB as fastGB
 from ldc.common.tools import compute_tdi_snr, window
 
-from sources2 import *
+from sources import *
 
 # customized settings
 plot_parameter = {  # 'backend': 'ps',
@@ -86,7 +86,7 @@ grandparent = os.path.dirname(parent)
 Radler = False
 version = '2'
 reduction = 1
-weeks = int(sys.argv[1])
+weeks = int(sys.argv[5])
 print('week',weeks)
 Tobs = float(weeks*7*24*3600)
 
@@ -1067,7 +1067,7 @@ def match_function(found_sources_in, pGB_injected_not_matched):
         match_best_list.append(found_sources_in[j])
     return found_sources_in, pGB_injected_not_matched, match_list, pGB_best_list, match_best_list, found_sources_not_matched, pGB_injected_matched, found_sources_matched, match_list2, match_list3
 
-do_match_parallelized = True
+do_match_parallelized = False
 if do_match_parallelized:
     print('match parallelized')
     pGB_injected_matched = []
@@ -1384,9 +1384,9 @@ pGB_injected_not_matched_flat_df.to_pickle(SAVEPATH+'/evaluation/injected_not_ma
 # plt.xlabel(r'$f$ (mHz)')
 # plt.show()
 
-found_sources_in_flat = np.concatenate(found_sources_in)
-found_sources_in_flat_array = {attribute: np.asarray([x[attribute] for x in found_sources_in_flat]) for attribute in found_sources_in_flat[0].keys()}
-found_sources_in_flat_df = pd.DataFrame(found_sources_in_flat_array)
+# found_sources_in_flat = np.concatenate(found_sources_in)
+# found_sources_in_flat_array = {attribute: np.asarray([x[attribute] for x in found_sources_in_flat]) for attribute in found_sources_in_flat[0].keys()}
+# found_sources_in_flat_df = pd.DataFrame(found_sources_in_flat_array)
 
 
 found_sources_in = []
@@ -1423,11 +1423,11 @@ index_of_interest_to_plot = np.searchsorted(np.asarray(frequencies_search)[:,0],
 # index_of_interest_to_plot = np.searchsorted(np.asarray(frequencies_search)[:,0],  0.00360246099898)-2
 # index_of_interest_to_plot = np.searchsorted(np.asarray(frequencies_search)[:,0],  0.003302)-3
 # index_of_interest_to_plot = np.searchsorted(np.asarray(frequencies_search)[:,0],  0.002026)-2
-index_of_interest_to_plot = np.searchsorted(np.asarray(frequencies_search)[:,0],  0.00399)+99
-# index_of_interest_to_plot = np.searchsorted(np.asarray(frequencies_search)[:,0],  0.003508)-2
+# index_of_interest_to_plot = np.searchsorted(np.asarray(frequencies_search)[:,0],  0.00399)+99
+index_of_interest_to_plot = np.searchsorted(np.asarray(frequencies_search)[:,0],  0.003508)-2
 # index_of_interest_to_plot = np.searchsorted(np.asarray(frequencies_search)[:,0],  0.005661)-2
 #plot strains
-number_of_windows = 6
+number_of_windows = 3
 for i in range(len(frequencies_search)):
     if i != index_of_interest_to_plot:
         continue
@@ -1468,12 +1468,12 @@ for i in range(len(frequencies_search)):
                 # matched_extended[-1][parameter] = pGB_injected_matched[i+j][k][parameter]
     save_name_path = SAVEPATH+'/strain added Amplitude'+ str(int(np.round(frequencies_search[i][0]*10**8))) +save_name+str(int(len(matched_extended)))+'.png'
     pGB_injected_dict_list = pGB_injected_dict_list[::2]
-    if len(pGB_injected_dict_list) > 20:
-        search1.plotA(found_sources_in=[], found_sources_not_matched = [], pGB_injected= [],  pGB_injected_matched= pGB_injected_dict_list, vertical_lines= vertical_lines, saving_label =save_name_path) 
+    if len(pGB_injected_dict_list) > 60:
+        search1.plot(found_sources_in=[], found_sources_not_matched = [], pGB_injected= [],  pGB_injected_matched= pGB_injected_dict_list, vertical_lines= vertical_lines, saving_label =save_name_path) 
     else:
-        search1.plotAE(found_sources_in=found_extended, found_sources_not_matched = found_not_matched_extended, pGB_injected= pGB_injected_dict_list,  pGB_injected_matched= matched_extended, vertical_lines= vertical_lines, saving_label =save_name_path) 
+        search1.plotA(found_sources_in=found_extended, pGB_injected= pGB_injected_dict_list,  pGB_injected_matched= matched_extended, vertical_lines= vertical_lines, saving_label =save_name_path) 
         # search1.plot(found_sources_in=found_sources_mp_best[i], pGB_injected=pGB_injected[i][:10], pGB_injected_matched= matched_extended, saving_label =SAVEPATH+'/strain added'+ str(int(np.round(frequencies_search[i][0]*10**8))) +save_name+'in.png') 
-
+    plt.show(block=True)
 
 
 print(correlation_match(pGB_injected_dict_list[0],found_not_matched_extended[0]))

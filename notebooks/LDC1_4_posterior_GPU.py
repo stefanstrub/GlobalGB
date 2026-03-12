@@ -14,7 +14,7 @@ import multiprocessing as mp
 import pandas as pd
 import os
 import h5py
-from KDEpy import FFTKDE
+# from KDEpy import FFTKDE
 import sys
 sys.path.append('/cluster/home/sstrub/Repositories/LDC/lib/lib64/python3.8/site-packages/ldc-0.1-py3.8-linux-x86_64.egg')
 
@@ -24,7 +24,7 @@ from ldc.common.series import TimeSeries
 import ldc.waveform.fastGB as fastGB
 from ldc.common.tools import window
 # from ldc.waveform.fastGB import fastGB
-# import ldc.waveform.fastGB as fastGB
+# import ldc.waveform.fastGB as fastGB+
 
 # from ldc.common.tools import compute_tdi_snr
 

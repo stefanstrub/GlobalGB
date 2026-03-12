@@ -973,7 +973,7 @@ class Search():
 
     def plotA(self, maxpGBs=None, pGBadded=None, found_sources_in= [], found_sources_not_matched= [], pGB_injected = [], pGB_injected_matched = [], chains=[], added_label='Injection2', saving_label =None, vertical_lines = [], second_data= None):
         # plt.figure(figsize=fig_size)
-        fig, [ax1, ax2, ax3] = plt.subplots(3, 1, sharex=False, figsize=np.array(fig_size)*[1,1.5])
+        fig, [ax1, ax2] = plt.subplots(2, 1, sharex=False, figsize=np.array(fig_size)*[1,1.5])
 
         parameter_x = 'Frequency'
         parameter_y = 'Amplitude'
@@ -1004,7 +1004,7 @@ class Search():
                 if pGB_injected[j][parameter_x2][k] < 0:
                     pGB_injected[j][parameter_x2][k] += 2*np.pi
             # pGB_injected[j][parameter_x2][pGB_injected[j][parameter_x2] < 0] += 2*np.pi
-            ax3.plot(pGB_injected[j][parameter_x2],pGB_injected[j][parameter_y2],'o', color=colors[j%10], markersize=7, alpha = 1, markerfacecolor='None')
+            # ax3.plot(pGB_injected[j][parameter_x2],pGB_injected[j][parameter_y2],'o', color=colors[j%10], markersize=7, alpha = 1, markerfacecolor='None')
             # ax3.plot(pGB_injected[j]['EclipticLongitude']*10**3,pGB_injected[j]['EclipticLatitude'],'o', color=colors[j%10], markersize=7, alpha = 0.5)
             # ax4.plot(pGB_injected[j]['Inclination']*10**3,pGB_injected[j]['FrequencyDerivative'],'o', color=colors[j%10], markersize=7, alpha = 0.5)
             # ax5.plot(pGB_injected[j]['InitialPhase']*10**3,pGB_injected[j]['Polarization'],'o', color=colors[j%10], markersize=7, alpha = 0.5)
@@ -1026,7 +1026,7 @@ class Search():
             for k in range(len(pGB_injected_matched[j][parameter_x2].shape)):
                 if pGB_injected_matched[j][parameter_x2][k] < 0:
                     pGB_injected_matched[j][parameter_x2][k] += 2*np.pi
-            ax3.plot(pGB_injected_matched[j][parameter_x2],pGB_injected_matched[j][parameter_y2],'o', color=colors[j%10], markersize=7, alpha = 1, markerfacecolor='None')
+            # ax3.plot(pGB_injected_matched[j][parameter_x2],pGB_injected_matched[j][parameter_y2],'o', color=colors[j%10], markersize=7, alpha = 1, markerfacecolor='None')
             # ax3.plot(pGB_injected_matched[j]['EclipticLongitude']*10**3,pGB_injected_matched[j]['EclipticLatitude'],'o', color=colors[j%10], markersize=7, alpha = 0.5)
         if pGBadded != None:
             Xs, Ys, Zs = self.GB.get_fd_tdixyz(template=pGBadded, oversample=4, tdi2=self.tdi2)
@@ -1095,7 +1095,7 @@ class Search():
             std_x = np.std(chains[j][parameter_x2])
             mean_y = np.mean(chains[j][parameter_y2])
             std_y = np.std(chains[j][parameter_y2])
-            ax3.errorbar(mean_x, mean_y, xerr=std_x, yerr=std_y, capsize=6, color=colors[j%10], markersize=10, zorder = 2)
+            # ax3.errorbar(mean_x, mean_y, xerr=std_x, yerr=std_y, capsize=6, color=colors[j%10], markersize=10, zorder = 2)
 
         ax1.axvline(self.lower_frequency* 1000, color= 'red', label='Boundaries')
         ax1.axvline(self.upper_frequency* 1000, color= 'red')
@@ -1112,8 +1112,8 @@ class Search():
         ax2.set_xlabel(parameter_x)
         if parameter_x == 'Frequency':
             ax2.set_xlabel(r'$f$ (mHz)')
-        ax3.set_xlabel(r'$\lambda$'+' (rad)')
-        ax3.set_ylabel(r'$\beta$'+' (rad)')
+        # ax3.set_xlabel(r'$\lambda$'+' (rad)')
+        # ax3.set_ylabel(r'$\beta$'+' (rad)')
         ax1.set_ylabel(r'$|A|$')
         ax2.set_ylabel(r'$\mathcal{A}$')
         ax1.set_yscale('log')

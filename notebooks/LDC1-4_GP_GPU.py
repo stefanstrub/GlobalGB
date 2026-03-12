@@ -17,10 +17,10 @@ import h5py
 import sys
 sys.path.append('/cluster/home/sstrub/Repositories/LDC/lib/lib64/python3.8/site-packages/ldc-0.1-py3.8-linux-x86_64.egg')
 
-from ldc.lisa.noise import get_noise_model
+# from ldc.lisa.noise import get_noise_model
 from ldc.common.series import TimeSeries, TDI, FrequencySeries
 from ldc.common.tools import window
-import ldc.waveform.fastGB as fastGB
+# import ldc.waveform.fastGB as fastGB
 # from ldc.common.tools import compute_tdi_snr
 
 from fastkde import fastKDE
@@ -2711,8 +2711,10 @@ higher_window = lower_window+batch_size
 # lower_window = 7210
 
 for i in range(len(found_sources_in)):
-    if i < lower_window or i >= higher_window:
+    if i != 1000:
         continue
+    # if i < lower_window or i >= higher_window:
+    #     continue
     # if i in [0,len(found_sources_in)-1]:
     #     continue
     for j in range(len(found_sources_in[i])):

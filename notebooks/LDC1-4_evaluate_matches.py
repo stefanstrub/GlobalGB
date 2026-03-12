@@ -90,15 +90,15 @@ SAVEPATH_sangria = grandparent+"/LDC/pictures/Sangria/"
 save_name1 = 'original_Sangria_6m_mbhb_SNR9_seed1'
 save_name2 = 'Sangria_12m_filled_anticorrelated'
 # save_name2 = 'original_Sangria_6m_no_mbhb_SNR9_seed1'
-# save_name3 = 'original_Sangria_12m_mbhb_SNR9_seed1'
+save_name1 = 'original_Sangria_12m_mbhb_SNR9_seed1'
 # save_name4 = 'original_Sangria_12m_no_mbhb_SNR9_seed42'
 # save_name3 = 'Sangria_1'
 # save_name3 = 'LDC1-4_2_optimized_second'
 # save_name2 = 'Radler_1_full'
 # save_name0 = 'LDC1-4_half_year'
-save_name4 = 'Radler_6m'
-save_name3 = 'Radler_12m'
-save_name1 = 'Radler_24m_redone'
+# save_name4 = 'Radler_6m'
+# save_name3 = 'Radler_12m'
+# save_name1 = 'Radler_24m_redone'
 # save_name = 'LDC1-4_half_year'
 # save_name = 'Sangria_1_full_cut'
 
@@ -110,9 +110,10 @@ duration = '15728640'
 duration = '31457280'
 # save_name1 = 'Montana2022_'+duration
 
-save_names = [save_name1, save_name2, save_name3, save_name4]
+# save_names = [save_name1, save_name2, save_name3, save_name4]
+save_names = [save_name1]
 # SAVEPATHS = [SAVEPATH_sangria,SAVEPATH_sangria,SAVEPATH_sangria,SAVEPATH_sangria]
-SAVEPATHS = [SAVEPATH,SAVEPATH_sangria,SAVEPATH,SAVEPATH]
+SAVEPATHS = [SAVEPATH_sangria]
 
 Tobs = int(duration)
 
@@ -314,7 +315,7 @@ if parameter_y == 'IntrinsicSNR':
 else:
     plt.ylabel(labels[parameter_y])    
 plt.legend(markerscale=4, loc = 'upper right')
-plt.savefig(SAVEPATH+'/Evaluation/'+parameter_y+save_name+'injected_not_matched_found_matched_found_not_matched'+end_string,dpi=300,bbox_inches='tight')
+# plt.savefig(SAVEPATH+'/Evaluation/'+parameter_y+save_name+'injected_not_matched_found_matched_found_not_matched'+end_string,dpi=300,bbox_inches='tight')
 plt.show()
 
 #### plot

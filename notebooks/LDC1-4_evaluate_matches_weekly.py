@@ -1640,23 +1640,11 @@ markersize = 5
 alpha = 0.5
 fig = plt.figure(figsize=[9,9])
 ax = plt.axes(projection='3d')
-# postitive_fd_mask = found_sources_matched_positive_fd_list[data_set]['FrequencyDerivative'] >= 0
-# ax.scatter(found_sources_matched_positive_fd_list[data_set]['GalactocentricX'],found_sources_matched_positive_fd_list[data_set]['GalactocentricY'],found_sources_matched_positive_fd_list[data_set]['GalactocentricZ'],marker='.')
-# postitive_fd_mask = found_sources_not_matched_list[data_set]['FrequencyDerivative'] >= 0
-# ax.plot(found_sources_not_matched_list[data_set]['GalacticLatitude'][postitive_fd_mask],found_sources_not_matched_list[data_set]['Distance'][postitive_fd_mask],'r.', label = 'Injected', markersize= 1, zorder=1)
-# postitive_fd_mask = pGB_injected_matched_list[data_set]['FrequencyDerivative'] >= 0
 ax.plot(pGB_injected_matched_positive_fd_list[data_set]['GalactocentricX'],pGB_injected_matched_positive_fd_list[data_set]['GalactocentricY'],pGB_injected_matched_positive_fd_list[data_set]['GalactocentricZ'], '.', markersize=0.5)
-# postitive_fd_mask = pGB_injected_not_matched_list[data_set]['FrequencyDerivative'] >= 0
-# ax.plot(pGB_injected_not_matched_list[data_set]['GalacticLatitude'][postitive_fd_mask],pGB_injected_not_matched_list[data_set]['Distance'][postitive_fd_mask],'+', label = 'not matched', color = 'r', markersize=2, zorder= 1)
-# postitive_fd_mask = pGB_injected_flat_highSNR_df['FrequencyDerivative'] >= 0
-# ax.plot(pGB_injected_flat_highSNR_df['GalacticLatitude'][postitive_fd_mask],pGB_injected_flat_highSNR_df['Distance'][postitive_fd_mask],'+', label = 'injected SNR>10', color = 'r', markersize=2, zorder= 4)
 plt.plot(sun['GalactocentricX'],sun['GalactocentricY'],'.',c='red', markersize=6, alpha=1, zorder = 2,  label='Sun')
 ax.set_xlabel('X [kpc]')
 ax.set_ylabel('Y [kpc]')
 ax.set_zlabel('Z [kpc]')
-# ax.set_zlim(-1,1)
-# start, end = ax.get_zlim()
-# ax.zaxis.set_ticks(np.arange(start, end+0.5, 0.5))
 ax.set_zlim(-15,15)
 ax.set_xlim(-15,15)
 ax.set_ylim(-15,15)
@@ -1806,14 +1794,3 @@ for angle in range(330,360):
     plt.savefig(SAVEPATH+'/galactocentric_3D_contour_'+save_names[data_set]+'angle'+str(angle))
     plt.show()
     plt.close()
-
-
-Liebe Mirjam,
-
-
-Gerade eben habe ich die korrigierte Version mit Domenico's Unterschrift bei dir im Büro abgegeben. Ich hoffe das ist so gut für dich.
-
-
-Vielen Dank,
-
-Stefan
