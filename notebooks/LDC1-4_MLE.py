@@ -13,14 +13,10 @@ import os
 import h5py
 import sys
 import pickle
-# sys.path.append('/cluster/home/sstrub/Repositories/LDC/lib/lib64/python3.8/site-packages/ldc-0.1-py3.8-linux-x86_64.egg')
-sys.path.append('/cluster/home/sstrub/python/lib64/python3.8/site-packages/ldc-0.1-py3.8-linux-x86_64.egg')
-sys.path.append('/cluster/home/sstrub/.local/lib/python3.9/site-packages')
 
 from ldc.lisa.noise import get_noise_model
 from ldc.common.series import TimeSeries
 import ldc.waveform.fastGB as fastGB
-from ldc.common.tools import compute_tdi_snr
 try:
     from ldc.common.series import window ### manual install of  ldc
 except:

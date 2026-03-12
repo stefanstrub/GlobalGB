@@ -1,6 +1,7 @@
 .gitignore
 README.md
 requirements.txt
+setup.cfg
 setup.py
 .vscode/launch.json
 dist/gbgpu-0.1-py3.7-linux-x86_64.egg
@@ -110,6 +111,7 @@ gbgpu.egg-info/PKG-INFO
 gbgpu.egg-info/SOURCES.txt
 gbgpu.egg-info/dependency_links.txt
 gbgpu.egg-info/not-zip-safe
+gbgpu.egg-info/requires.txt
 gbgpu.egg-info/top_level.txt
 gbgpu/tests/__init__.py
 gbgpu/tests/test_gbgpu.py
