@@ -1,8 +1,0 @@
-approximant: TD_fdot
-catalogs: ../data/007_SeBa_r105_ag_wdwd_pop_highres_P025g70_N1e1.npy
-nsource: 10
-seed: 1234
-source_type: GB
-random_inclination: gaussian_0.09
-random_mass: gaussian_0.01percent
-random_frequency: gaussian_0.01percent

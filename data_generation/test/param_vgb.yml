@@ -1,5 +1,0 @@
-approximant: TD_fdot
-catalogs: data/VGB.npy
-nsource: 2
-seed: 1234
-source_type: GB

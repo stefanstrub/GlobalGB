@@ -1,8 +1,0 @@
-approximant: TD_fdot
-catalogs: ../data/AMCVn_GWR_MLDC_bulgefix_opt_N1e1.npy
-nsource: 3
-seed: 1234
-source_type: GB
-random_inclination: uniform
-random_mass: gaussian_0.01percent
-random_frequency: gaussian_0.01percent

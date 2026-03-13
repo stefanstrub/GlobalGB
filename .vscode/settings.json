@@ -1,4 +1,5 @@
 {
-    "python.pythonPath": "/home/stefan/anaconda3/bin/python",
-    "jupyter.jupyterServerType": "local"
+    "python-envs.defaultEnvManager": "ms-python.python:conda",
+    "python-envs.defaultPackageManager": "ms-python.python:conda",
+    "python-envs.pythonProjects": []
 }
