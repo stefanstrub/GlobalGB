@@ -484,11 +484,16 @@ class GB_Searcher:
             def get_tdi_jit(params, tdi_generation=waveform_args['tdi_generation'], tdi_combination=channel_combination):
                 return self.fgb.get_tdi(params, tdi_generation=tdi_generation, tdi_combination=tdi_combination)
             self.get_tdi = get_tdi_jit
+
         if get_kmin is not None:
             self.get_kmin = get_kmin
         else:
             self.get_kmin = self.fgb.get_kmin
 
+        @jax.jit
+        def from_01toSNR_jit(params):
+            return self.from01toSNR_jax(params)
+        self.from01toSNR = from_01toSNR_jit
             
         f_0 = fmin
         f_transfer = 19.1*10**-3
@@ -520,6 +525,21 @@ class GB_Searcher:
         previous_max = np.random.rand(N_PARAMS)
         self.pGBs = scaletooriginal(previous_max, self.boundaries_arr)
 
+        # warm up the get_tdi function
+        start = time.time()
+        get_tdi_jit(jnp.array([self.pGBs]))
+        print('time', time.time()-start)
+        start = time.time()
+        self.get_tdi(jnp.array([self.pGBs]))
+        print('time', time.time()-start)
+        start = time.time()
+        self.from01toSNR(np.array([0.5]*N_PARAMS_NO_AMP))
+        print('time from01toSNR', time.time()-start)
+        start = time.time()
+        self.from01toSNR(np.array([0.5]*N_PARAMS_NO_AMP))
+        print('time from01toSNR 2', time.time()-start)
+
+
     def update_noise(self, pGB=None):
         """Updates the noise within the frequency window.
         pGB: gravitational wave parameters array (shape: (8,))
@@ -546,23 +566,54 @@ class GB_Searcher:
         self.ST = np.ones(len(self.dataT))*np.median((np.abs(self.dataT-Tf)/self.dt)**2/(self.fs*self.N_samples)*2)
 
 
-    def align_waveform_to_data(self, waveform, pGB):
+    def align_waveform_to_data_jax(self, waveform, pGB):
         """Aligns a JAX waveform array to the data frequency grid.
-        
-        Args:
-            waveform: JAX array from get_tdi (1D array at specific frequency bins)
-            pGB: parameter array to get the starting frequency
-            
-        Returns:
-            numpy array aligned to self.freq, zero-filled where waveform doesn't exist
+        waveform: JAX array from get_tdi (1D array at specific frequency bins)
+        pGB: parameter array to get the starting frequency
         """
-        # Get the starting frequency index for this source
         f0 = pGB[PARAM_INDICES['Frequency']]
         kmin = self.get_kmin(f0)
 
         n_freq = len(self.freq)
         waveform_len = len(waveform)
 
+        # Compute the frequency index offset between data and waveform
+        # self.freq[0] corresponds to some frequency, kmin*df is the waveform start
+        wf_start_freq = kmin * self.df
+        data_start_freq = float(self.freq[0])
+        start_idx = jnp.round(jnp.divide(wf_start_freq - data_start_freq, self.df))
+        start_idx = start_idx.astype(jnp.int32)
+        # Clip to valid range
+        wf_start = jnp.maximum(0, -start_idx)
+        data_start = jnp.maximum(0, start_idx)
+        wf_end = jnp.minimum(waveform_len, n_freq - start_idx)
+        data_end = jnp.minimum(n_freq, start_idx + waveform_len)
+        aligned = jnp.zeros(n_freq, dtype=jnp.complex128)
+
+        # Use index-based approach compatible with JAX tracing
+        # Create index arrays for both source (waveform) and destination (aligned)
+        data_indices = jnp.arange(n_freq)
+        wf_indices = data_indices - start_idx
+
+        # Create mask for valid indices
+        valid_mask = (wf_indices >= 0) & (wf_indices < waveform_len)
+
+        # Clip waveform indices to valid range for safe indexing
+        safe_wf_indices = jnp.clip(wf_indices, 0, waveform_len - 1)
+
+        # Use where to conditionally copy values
+        aligned = jnp.where(valid_mask, waveform[safe_wf_indices], aligned)
+        return aligned
+
+    def align_waveform_to_data(self, waveform, pGB):
+        """Aligns a numpy waveform array to the data frequency grid.
+        waveform: numpy array from get_tdi (1D array at specific frequency bins)
+        pGB: parameter array to get the starting frequency
+        """
+        f0 = pGB[PARAM_INDICES['Frequency']]
+        kmin = self.get_kmin(f0)
+        n_freq = len(self.freq)
+        waveform_len = len(waveform)
         # Compute the frequency index offset between data and waveform
         # self.freq[0] corresponds to some frequency, kmin*df is the waveform start
         wf_start_freq = kmin * self.df
@@ -576,18 +627,6 @@ class GB_Searcher:
         data_start = max(0, start_idx)
         wf_end = min(waveform_len, n_freq - start_idx)
         data_end = min(n_freq, start_idx + waveform_len)
-
-        # JAX-compatible branch: keep everything as jnp when waveform is a JAX array
-        if isinstance(waveform, jnp.ndarray):
-            aligned = jnp.zeros(n_freq, dtype=jnp.complex128)
-            if data_start < n_freq and data_end > 0 and wf_start < waveform_len:
-                copy_len = min(data_end - data_start, wf_end - wf_start)
-                aligned = aligned.at[data_start:data_start + copy_len].set(
-                    waveform[wf_start:wf_start + copy_len]
-                )
-            return aligned
-
-        # Numpy branch for non-JAX usage
         aligned = np.zeros(n_freq, dtype=np.complex128)
         if data_start < n_freq and data_end > 0 and wf_start < waveform_len:
             copy_len = min(data_end - data_start, wf_end - wf_start)
@@ -651,10 +690,10 @@ class GB_Searcher:
         
         for i in range(len(pGBs)):
             As, Es, Ts = self.get_tdi(pGBs[i])
-            self.Af += self.align_waveform_to_data(As, pGBs[i])
-            self.Ef += self.align_waveform_to_data(Es, pGBs[i])
+            self.Af += self.align_waveform_to_data_jax(As, pGBs[i])
+            self.Ef += self.align_waveform_to_data_jax(Es, pGBs[i])
             if self.use_T_component:
-                self.Tf += self.align_waveform_to_data(Ts, pGBs[i])
+                self.Tf += self.align_waveform_to_data_jax(Ts, pGBs[i])
 
         # Compute differential and harmonic components
         dh = jnp.sum(jnp.real(self.dataA * jnp.conj(self.Af)) / self.SA)
@@ -1093,8 +1132,8 @@ class GB_Searcher:
             boundaries = self.boundaries_reduced
         return -self.from01tologlikelihood(pGBs01, boundaries)
 
-    def from01toSNR(self, pGBs01):
-        """Computes the log-likelihood from the parameters in range [0,1] without the amplitude
+    def from01toSNR_numpy(self, pGBs01):
+        """Computes the SNR from the parameters in range [0,1] without the amplitude
         pGBs01: flat array of parameters in [0,1] (length: n_signals * 7, no amplitude)
         """
         x = np.asarray(pGBs01)
@@ -1114,6 +1153,9 @@ class GB_Searcher:
         return p
 
     def from01toSNR_jax(self, pGBs01):
+        """Computes the SNR from the parameters in range [0,1] without the amplitude
+        pGBs01: flat array of parameters in [0,1] (length: n_signals * 7, no amplitude)
+        """
         x = jnp.asarray(pGBs01)
         n_signals = x.shape[0] // N_PARAMS_NO_AMP
         x = x.reshape((n_signals, N_PARAMS_NO_AMP))
@@ -1370,10 +1412,52 @@ class Segment_GB_Searcher:
         print('start search', np.round(lower_frequency*10**3, 5), 'mHz to', np.round(upper_frequency*10**3, 5), 'mHz')
         start_search = time.time()
         initial_guess = []
+            
+        # search = GB_Searcher(tdi_fs_search,self.Tobs, lower_frequency, upper_frequency, self.waveform_args, dt=self.dt, channel_combination=self.channel_combination)
+
+        # number_frequency_bins = len(search.freq)
+        # # set N to the next power of 2 greater than number_frequency_bins, but maximum 2**11 and minimum 2**6
+        # self.N = np.min([int(2**(np.ceil(np.log2(number_frequency_bins)))), 2**11])
+        # self.N = np.max([self.N, 2**6])
+        # self.fgb = JaxGB(orbits=self.waveform_args['orbits'],  t_obs=self.waveform_args['Tobs'], t0=self.waveform_args['t0'], n=self.N)
+        # # Create JIT-compiled version
+        # @jax.jit
+        # def get_tdi_jit(params, tdi_generation=self.waveform_args['tdi_generation'], tdi_combination=self.channel_combination):
+        #     return self.fgb.get_tdi(params, tdi_generation=tdi_generation, tdi_combination=tdi_combination)
+        # self.get_tdi = get_tdi_jit
+
+        # def from_01toSNR_jit(params):
+        #     return search.from01toSNR(params)
+        # @jax.jit
+        # def from_01toSNR_jax_jit(params):
+        #     return search.from01toSNR_jax(params)
+        # self.get_kmin = self.fgb.get_kmin
+        # # time the get_tdi function
+        # start = time.time()
+        # get_tdi_jit(jnp.array([search.pGBs]))
+        # print('time get_tdi_jit', time.time()-start)
+        # start = time.time()
+        # get_tdi_jit(jnp.array([search.pGBs]))
+        # print('time get_tdi_jit 2', time.time()-start)
+        # start = time.time()
+        # search.get_tdi(jnp.array([search.pGBs]))
+        # print('time search.get_tdi', time.time()-start)
+        # start = time.time()
+        # search.from01toSNR(np.array([0.5]*N_PARAMS_NO_AMP))
+        # print('time search.from01toSNR', time.time()-start)
+        # start = time.time()
+        # search.from01toSNR_jax(jnp.array([0.5]*N_PARAMS_NO_AMP))
+        # print('time search.from01toSNR_jax', time.time()-start)
+        # start = time.time()
+        # from_01toSNR_jit(jnp.array([0.5]*N_PARAMS_NO_AMP))
+        # print('time from_01toSNR_jit', time.time()-start)
+        # start = time.time()
+        # from_01toSNR_jax_jit(jnp.array([0.5]*N_PARAMS_NO_AMP))
+        # print('time from_01toSNR_jax_jit', time.time()-start)
 
         # use found sources from previous search to get initial guess
         if len(self.found_sources_previous) > 0:
-            search = GB_Searcher(tdi_fs_search, self.Tobs, lower_frequency, upper_frequency, self.waveform_args, dt=self.dt, channel_combination=self.channel_combination, get_tdi=self.get_tdi, get_kmin=self.get_kmin)
+            search = GB_Searcher(tdi_fs_search,self.Tobs, lower_frequency, upper_frequency, self.waveform_args, dt=self.dt, channel_combination=self.channel_combination)
             if self.subtract_neighbors:
                 padding_of_initial_guess_range = 0
             else:
