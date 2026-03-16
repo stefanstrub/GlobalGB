@@ -17,22 +17,22 @@ class LISADataLoader:
     
     SUPPORTED_DATASETS = ['Radler', 'Sangria', 'Spritz', 'Mojito', 'Windowed']
     
-    def __init__(self, dataset: str, base_path: str = None):
+    def __init__(self, config: dict):
         """
         Initialize the data loader.
         
         Args:
             dataset: One of 'Radler', 'Sangria', 'Spritz', 'Mojito', 'Windowed'
-            base_path: Base path to LDC data (defaults to grandparent/LDC)
+            config: Configuration dictionary
         """
-        if dataset not in self.SUPPORTED_DATASETS:
+        if config["data_set"] not in self.SUPPORTED_DATASETS:
             raise ValueError(f"Dataset must be one of {self.SUPPORTED_DATASETS}")
-        
-        self.dataset = dataset
-        self.base_path = base_path or self._get_default_base_path()
-        self.data_path = self._get_data_path()
-        self.save_path = self._get_save_path()
-        
+
+        self.dataset = config["data_set"]
+        self.data_path = config["data_path"]
+        self.catalog_path = config["catalog_path"]
+        self.save_path = config["save_path"]
+
         # Data attributes (populated after loading)
         self.td = None           # TDI time domain data
         self.tdi_fs = None       # TDI frequency series
@@ -47,33 +47,6 @@ class LISADataLoader:
         self.freq = None         # Frequency array
         self.CENTRAL_FREQ = 281600000000000.0
         
-    def _get_default_base_path(self):
-        """Get default base path relative to current working directory"""
-        path = os.getcwd()
-        parent = os.path.dirname(path)
-        return os.path.dirname(parent) + "/LDC"
-    
-    def _get_data_path(self):
-        """Get data path for the selected dataset"""
-        paths = {
-            'Radler': f"{self.base_path}/Radler/data",
-            'Sangria': f"{self.base_path}/Sangria/data",
-            'Spritz': f"{self.base_path}/Spritz/data",
-            'Mojito': f"{self.base_path}/Mojito/data/",
-            'Windowed': f"{self.base_path}/Windowed/data",
-        }
-        return paths[self.dataset]
-    
-    def _get_save_path(self):
-        """Get save path for the selected dataset"""
-        paths = {
-            'Radler': f"{self.base_path}/pictures/LDC1-4/",
-            'Sangria': f"{self.base_path}/GlobalFit/Sangria_EMRI/",
-            'Spritz': f"{self.base_path}/Spritz/evaluation",
-            'Mojito': f"{self.base_path}/Mojito/evaluation",
-            'Windowed': f"{self.base_path}/Windowed/",
-        }
-        return paths[self.dataset]
     
     def load(self, filename: str = None, dt: float = None, 
              Tobs: float = None, weeks: int = None, channel_combination='XYZ', **kwargs):
@@ -207,16 +180,17 @@ class LISADataLoader:
         
         self.Tobs = Tobs or float(td['t'][-1]) + self.dt
     
-    def _load_mojito(self, filename, dt, Tobs, s_index=0, channel_combination='XYZ', **kwargs):
+    def _load_mojito(self, filename=None, dt=None, Tobs=None, channel_combination='AET', **kwargs):
         """Load Mojito dataset"""
-        if dt is None:
-            dt = 2.5  # Default for Mojito
-        self.dt = dt
-        
+        if dt is not None:
+            self.dt = dt
         if filename is None:
-            filename = self.data_path + f"COMBINED/L1/mojito_light_731d_2.5s_L1_0_0_20251218T000909441368Z.h5"
+            filename = self.data_path
+        if channel_combination is not None:
+            self.channel_combination = channel_combination
+        if Tobs is not None:
+            self.Tobs = Tobs
         
-
         self.data = load_mojito_l1(filename)
         self.Tobs_original = float(self.data.duration)
         # ── Pipeline parameters ───────────────────────────────────────────────────────
@@ -259,7 +233,7 @@ class LISADataLoader:
             filter_kwargs=filter_kwargs,
             trim_kwargs=trim_kwargs,
             window_kwargs=window_kwargs,
-            channels=channel_combination,
+            channels=self.channel_combination,
         )
 
         td = processed_segments["segment0"]
@@ -268,15 +242,15 @@ class LISADataLoader:
         
 
         # Convert from frequency to fractional frequency
-        CENTRAL_FREQ = self.data.metadata["laser_frequency"]
+        self.CENTRAL_FREQ = self.data.metadata["laser_frequency"]
 
         self.freq = np.fft.rfftfreq(td.N, d=td.dt)
         self.tdi_ts = {ch: td.data[ch] for ch in td.channels}
         # self.tdi_ts = {ch: TimeSeries(td.data[ch], dt=td.dt, t0=self.data.t0) for ch in td.channels}
-        self.tdi_fs = {ch: np.fft.rfft(td.data[ch])*td.dt / CENTRAL_FREQ for ch in td.channels}
+        self.tdi_fs = {ch: np.fft.rfft(td.data[ch])*td.dt / self.CENTRAL_FREQ for ch in td.channels}
         self.tdi_fs['freq'] = self.freq
 
-        self.Tobs = float(len(td.data[channel_combination[-1]])) * td.dt # Tobs after trimming
+        self.Tobs = float(len(td.data[self.channel_combination[-1]])) * td.dt # Tobs after trimming
         trim_time = (self.Tobs_original - self.Tobs)/2 # Time to trim from the start
         self.t0 = self.data.t0 + trim_time # Start time after trimming
         # self.t0_processed = td.t0
@@ -295,7 +269,7 @@ class LISADataLoader:
     
     def _load_mojito_mbhb_catalog(self):
         """Load Mojito MBHB catalog"""
-        catalog_path = self.base_path + '/Mojito/catalogues/mbhb_cat_mojito_lite_processed_MT.hdf5'
+        catalog_path = self.catalog_path + "/mbhb_cat_mojito_lite_processed_MT.hdf5"
         
         if not os.path.exists(catalog_path):
             print(f"Warning: MBHB catalog file not found at {catalog_path}")
@@ -332,8 +306,7 @@ class LISADataLoader:
     
     def _load_mojito_wdwd_catalog(self):
         """Load Mojito WDWD (galactic binary) catalog"""
-        catalog_path = self.base_path + '/Mojito/catalogues/wdwd_cat_mojito_lite_processed.hdf5'
-        
+        catalog_path = self.catalog_path + "/wdwd_cat_mojito_lite_processed.hdf5"
         if not os.path.exists(catalog_path):
             print(f"Warning: WDWD catalog file not found at {catalog_path}")
             self.catalog_wdwd = None
