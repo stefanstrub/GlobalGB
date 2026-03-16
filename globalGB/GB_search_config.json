@@ -9,6 +9,10 @@
     "frequency_range": [0.0003, 0.05],
     "seed": 1,
     "batch_size": 10,
-    "file_path": "/home/stefan/LDC/Mojito/data/GB/L1_0p4Hz/GB_EMRI_731d_2.5s_L1_source0_0_20251205T020733787241Z_noisy.h5",
-    "save_path": "/home/stefan/LDC/Mojito/found_signals/GB_EMRI/GB/"
+    "data_path": "/home/stefan/LDC/Mojito/data/GB/L1_0p4Hz/GB_EMRI_731d_2.5s_L1_source0_0_20251205T020733787241Z_noisy.h5",
+    "save_path": "/home/stefan/LDC/Mojito/found_signals/GB_EMRI/GB/",
+    "catalog_path": "/home/stefan/LDC/Mojito/catalogues/",
+    "match_criteria": "overlap",
+    "overlap_threshold": 0.9,
+    "scaled_snr_error_threshold": 0.3
 }

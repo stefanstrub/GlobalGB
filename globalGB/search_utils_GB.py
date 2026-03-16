@@ -18,6 +18,7 @@ Most public functions and classes are documented with NumPy-style docstrings
 so they can be used directly in analysis scripts or from interactive sessions.
 """
 
+from dataclasses import dataclass, field
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 import scipy
@@ -98,6 +99,15 @@ N_PARAMS = len(PARAM_NAMES)
 N_PARAMS_NO_AMP = N_PARAMS - 1  # Without Amplitude
 PARAM_NAMES_NO_AMP = [p for p in PARAM_NAMES if p != 'Amplitude']
 PARAM_LOG_UNIFORM = ['Amplitude']  # Default log-uniform parameters
+
+
+@dataclass
+class GBConfig:
+    """Configuration for the GB matching pipeline."""
+    def __init__(self, config: dict):
+        for key, value in config.items():
+            setattr(self, key, value)
+
 
 def scaletooriginal_jax(previous_max, boundaries):
     """

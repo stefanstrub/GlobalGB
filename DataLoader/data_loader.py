@@ -10,6 +10,7 @@ from copy import deepcopy
 from ldc.common.series import TimeSeries, FrequencySeries, TDI
 from ldc.common.tools import window
 from MojitoProcessor import load_mojito_l1, process_pipeline
+from globalGB.search_utils_GB import GBConfig
 
 
 class LISADataLoader:
@@ -17,21 +18,22 @@ class LISADataLoader:
     
     SUPPORTED_DATASETS = ['Radler', 'Sangria', 'Spritz', 'Mojito', 'Windowed']
     
-    def __init__(self, config: dict):
+    def __init__(self, config: GBConfig):
         """
         Initialize the data loader.
         
         Args:
             dataset: One of 'Radler', 'Sangria', 'Spritz', 'Mojito', 'Windowed'
-            config: Configuration dictionary
+            config: GBConfig object
         """
-        if config["data_set"] not in self.SUPPORTED_DATASETS:
+        if config.data_set not in self.SUPPORTED_DATASETS:
             raise ValueError(f"Dataset must be one of {self.SUPPORTED_DATASETS}")
 
-        self.dataset = config["data_set"]
-        self.data_path = config["data_path"]
-        self.catalog_path = config["catalog_path"]
-        self.save_path = config["save_path"]
+        self.config = config
+        self.dataset = config.data_set
+        self.data_path = config.data_path
+        self.catalog_path = config.catalog_path
+        self.save_path = config.save_path
 
         # Data attributes (populated after loading)
         self.td = None           # TDI time domain data
@@ -68,6 +70,7 @@ class LISADataLoader:
         """
         if weeks is not None:
             Tobs = float(weeks * 7 * 24 * 3600)
+
         
         loader_method = getattr(self, f'_load_{self.dataset.lower()}')
         loader_method(filename, dt, Tobs, channel_combination=channel_combination, **kwargs)
@@ -180,16 +183,20 @@ class LISADataLoader:
         
         self.Tobs = Tobs or float(td['t'][-1]) + self.dt
     
-    def _load_mojito(self, filename=None, dt=None, Tobs=None, channel_combination='AET', **kwargs):
+    def _load_mojito(self, filename=None, dt=None, Tobs_target=None, channel_combination='AET', **kwargs):
         """Load Mojito dataset"""
-        if dt is not None:
+        if dt is None:
+            self.dt = self.config.dt
+        else:
             self.dt = dt
         if filename is None:
-            filename = self.data_path
-        if channel_combination is not None:
+            filename = self.config.data_path
+        else:
+            filename = filename
+        if channel_combination is None:
+            self.channel_combination = self.config.channel_combination
+        else:
             self.channel_combination = channel_combination
-        if Tobs is not None:
-            self.Tobs = Tobs
         
         self.data = load_mojito_l1(filename)
         self.Tobs_original = float(self.data.duration)
@@ -254,6 +261,12 @@ class LISADataLoader:
         trim_time = (self.Tobs_original - self.Tobs)/2 # Time to trim from the start
         self.t0 = self.data.t0 + trim_time # Start time after trimming
         # self.t0_processed = td.t0
+        if Tobs_target is not None:
+            self.tdi_ts = {ch: TimeSeries(td.data[ch][:Tobs_target/td.dt], dt=td.dt, t0=self.data.t0) for ch in td.channels}
+            self.tdi_fs = {ch: np.fft.rfft(self.tdi_ts[ch])*td.dt / self.CENTRAL_FREQ for ch in td.channels}
+            self.tdi_fs['freq'] = self.freq
+            self.Tobs = Tobs_target
+
         
     
     def _load_mojito_catalog(self):

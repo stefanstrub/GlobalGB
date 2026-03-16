@@ -1,5 +1,6 @@
 import json
 from globalGB.GB_runner import GBSearchRunner
+from globalGB.search_utils_GB import GBConfig
 
 def parse_args(argv=None):
     import argparse
@@ -14,12 +15,14 @@ def main(argv=None):
     args = parse_args(argv)
     with open('globalGB/GB_search_config.json', 'r') as f:
         config = json.load(f)
+        config = GBConfig(config)
     runner = GBSearchRunner(
         batch_index=args.batch_index,
         which_run=args.which_run,
         config=config,
     )
-    runner.run()
+    # runner.run()
+    runner.create_skipped_windows_file()
 
 
 if __name__ == "__main__":

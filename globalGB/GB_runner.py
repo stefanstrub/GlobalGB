@@ -29,6 +29,7 @@ import jax.numpy as jnp
 import lisaorbits
 import numpy as np
 import pandas as pd
+import pickle
 
 from jaxgb.jaxgb import JaxGB
 
@@ -92,12 +93,12 @@ class GBSearchRunner:
 
         # Paths to the input TDI data and the directory where search results
         # for this run should be stored.
-        self.datapath = self.cfg["file_path"]
-        self.savepath = self.cfg["save_path"]
+        self.datapath = self.cfg.data_path
+        self.savepath = self.cfg.save_path
 
         # Deterministic numpy RNG for reproducibility of any stochastic steps
         # (in particular the optimisers in `search_utils_GB`).
-        np.random.seed(self.cfg["seed"])
+        np.random.seed(self.cfg.seed)
 
         self.tdi_ts = None
         self.tdi_fs = None
@@ -123,14 +124,14 @@ class GBSearchRunner:
           generator (TDI generation scheme, interpolated LISA orbits, etc.).
         """
         loader = LISADataLoader(
-            dataset=self.cfg["data_set"],
+            dataset=self.cfg.data_set,
             base_path=os.path.join(self.grandparent, "LDC"),
         )
 
         loader.load(
             self.datapath,
-            dt=self.cfg["dt"],
-            channel_combination=self.cfg["channel_combination"],
+            dt=self.cfg.dt,
+            channel_combination=self.cfg.channel_combination,
         )
         self.tdi_ts = loader.tdi_ts
         self.tdi_fs = loader.tdi_fs
@@ -159,7 +160,7 @@ class GBSearchRunner:
         orbits = lisaorbits.InterpolatedOrbits(t_grid, spacecraft_positions, spacecraft_velocities)
 
         self.waveform_args = {
-            "tdi_generation": self.cfg["tdi_generation"],
+            "tdi_generation": self.cfg.tdi_generation,
             "orbits": orbits,
             "Tobs": self.Tobs,
             "t0": self.t0,
@@ -184,7 +185,7 @@ class GBSearchRunner:
         - ``self.search_range`` to the overall frequency interval covered
           by this batch.
         """
-        frequencies = create_frequency_windows(self.cfg["frequency_range"], self.Tobs)
+        frequencies = create_frequency_windows(self.cfg.frequency_range, self.Tobs)
 
         frequencies_even = frequencies[::2]
         frequencies_odd = frequencies[1::2]
@@ -194,7 +195,9 @@ class GBSearchRunner:
         else:
             frequencies_search = frequencies_odd
 
-        batch_size = self.cfg["batch_size"]
+        self.frequencies_search_full = deepcopy(frequencies_search)
+
+        batch_size = self.cfg.batch_size
         start_index = batch_size * self.batch_index
 
         print(
@@ -215,10 +218,9 @@ class GBSearchRunner:
         while (
             frequencies_search[-1][1]
             + (frequencies_search[-1][1] - frequencies_search[-1][0]) / 2
-            > self.cfg["frequency_range"][1]
+            > self.cfg.frequency_range[1]
         ):
             frequencies_search = frequencies_search[:-1]
-        self.frequencies_search_full = deepcopy(frequencies_search)
         self.frequencies_search = frequencies_search
         self.search_range = (frequencies_search[0][0], frequencies_search[-1][1])
         print(
@@ -245,15 +247,15 @@ class GBSearchRunner:
             return
 
         start = time.time()
-        save_directory = f"/found_signals_{self.cfg['data_set']}_SNR_threshold_{int(self.cfg['snr_threshold'])}_seed{self.cfg['seed']}"
+        save_directory = f"/found_signals_{self.cfg.data_set}_SNR_threshold_{int(self.cfg.snr_threshold)}_seed{self.cfg.seed}"
 
         if self.which_run in ["odd"]:
             save_name_previous = (
-                f"/found_signals_{self.cfg['data_set']}_SNR_threshold_{int(self.cfg['snr_threshold'])}_even1st_seed{self.cfg['seed']}"
+                f"/found_signals_{self.cfg.data_set}_SNR_threshold_{int(self.cfg.snr_threshold)}_even1st_seed{self.cfg.seed}"
             )
         else:
             save_name_previous = (
-                f"/found_signals_{self.cfg['data_set']}_SNR_threshold_{int(self.cfg['snr_threshold'])}_odd_seed{self.cfg['seed']}"
+                f"/found_signals_{self.cfg.data_set}_SNR_threshold_{int(self.cfg.snr_threshold)}_odd_seed{self.cfg.seed}"
             )
 
         found_sources_flat = np.load(
@@ -283,12 +285,12 @@ class GBSearchRunner:
             found_sources_outside_flat,
             fgb,
             self.waveform_args["tdi_generation"],
-            self.cfg["channel_combination"],
+            self.cfg.channel_combination,
         )
 
         print("subtraction time", time.time() - start)
 
-    def remove_even_windows_if_unchanged(self) -> None:
+    def remove_even_windows_if_unchanged(self, frequency_windows_to_update=None) -> None:
         """
         Down-select even windows that merit a second pass.
 
@@ -302,23 +304,27 @@ class GBSearchRunner:
 
         The method updates ``self.frequencies_search`` in place.
         """
-        if self.which_run not in ["even"]:
-            return
 
-        frequencies_search_reduced: List[Tuple[float, float]] = []
-        frequencies_search_skipped: List[Tuple[float, float]] = []
+        if frequency_windows_to_update is None:
+            update_self = False
+            frequency_windows_to_update = self.frequencies_search
+        else:
+            update_self = True
 
-        save_directory = f"/found_signals_{self.cfg['data_set']}_SNR_threshold_{int(self.cfg['snr_threshold'])}_seed{self.cfg['seed']}"
+        self.frequencies_search_reduced: List[Tuple[float, float]] = []
+        self.frequencies_search_skipped: List[Tuple[float, float]] = []
+
+        save_directory = f"/found_signals_{self.cfg.data_set}_SNR_threshold_{int(self.cfg.snr_threshold)}_seed{self.cfg.seed}"
         save_name_previous = (
-            f"/found_signals_{self.cfg['data_set']}_SNR_threshold_{int(self.cfg['snr_threshold'])}_even1st_seed{self.cfg['seed']}"
+            f"/found_signals_{self.cfg.data_set}_SNR_threshold_{int(self.cfg.snr_threshold)}_even1st_seed{self.cfg.seed}"
         )
 
         found_sources_flat = np.load(
             self.savepath + save_directory + save_name_previous + ".npy", allow_pickle=True
         )
-        found_sources_flat_df = pd.DataFrame(found_sources_flat, columns=PARAM_NAMES).sort_values("Frequency")
+        found_sources_previous_df = pd.DataFrame(found_sources_flat, columns=PARAM_NAMES).sort_values("Frequency")
         save_name_previous_odd = (
-            f"/found_signals_{self.cfg['data_set']}_SNR_threshold_{int(self.cfg['snr_threshold'])}_odd_seed{self.cfg['seed']}"
+            f"/found_signals_{self.cfg.data_set}_SNR_threshold_{int(self.cfg.snr_threshold)}_odd_seed{self.cfg.seed}"
         )
 
         found_sources_flat = np.load(
@@ -326,7 +332,7 @@ class GBSearchRunner:
         )
         found_sources_outside_flat_df = pd.DataFrame(found_sources_flat, columns=PARAM_NAMES).sort_values("Frequency")
 
-        for win in self.frequencies_search:
+        for win in frequency_windows_to_update:
             found_sources_outside_lower = []
             found_sources_outside_upper = []
             try:
@@ -347,20 +353,30 @@ class GBSearchRunner:
                 pass
 
             if len(found_sources_outside_lower) > 0 or len(found_sources_outside_upper) > 0:
-                frequencies_search_reduced.append(win)
+                self.frequencies_search_reduced.append(win)
             else:
-                inside = found_sources_flat_df[
-                    (found_sources_flat_df["Frequency"] > win[0])
-                    & (found_sources_flat_df["Frequency"] < win[1])
+                inside = found_sources_previous_df[
+                    (found_sources_previous_df["Frequency"] > win[0])
+                    & (found_sources_previous_df["Frequency"] < win[1])
                 ]
-                if len(inside) > self.cfg["signals_per_window_first_run"] - 1:
-                    frequencies_search_reduced.append(win)
+                if len(inside) > self.cfg.max_signals_per_window_first_run - 1:
+                    self.frequencies_search_reduced.append(win)
                 else:
-                    frequencies_search_skipped.append(win)
+                    self.frequencies_search_skipped.append(win)
 
-        print("frequencies_search_reduced length", len(frequencies_search_reduced))
-        print("frequencies_search_skipped length", len(frequencies_search_skipped))
-        self.frequencies_search = frequencies_search_reduced
+        print("frequencies_search_reduced length", len(self.frequencies_search_reduced))
+        print("frequencies_search_skipped length", len(self.frequencies_search_skipped))
+        # create a dataframe of the skipped sources
+        skipped_sources = []
+        for freq in self.frequencies_search_skipped:
+            skipped_sources.append(found_sources_previous_df[
+                (found_sources_previous_df["Frequency"] > freq[0])
+                & (found_sources_previous_df["Frequency"] < freq[1])
+            ].to_numpy())
+        self.skipped_sources = np.concatenate(skipped_sources)
+
+        if update_self:
+            self.frequencies_search = self.frequencies_search_reduced
 
     def load_initial_guess(self):
         """
@@ -382,10 +398,10 @@ class GBSearchRunner:
         nHz, and the global search configuration (data set, SNR threshold and
         run label).
         """
-        save_name = f"{self.cfg['data_set']}_SNR_threshold_{int(self.cfg['snr_threshold'])}_{self.which_run}"
+        save_name = f"{self.cfg.data_set}_SNR_threshold_{int(self.cfg.snr_threshold)}_{self.which_run}"
 
         directory = os.path.join(
-            self.savepath, f"found_signals_{save_name}_seed{self.cfg['seed']}"
+            self.savepath, f"found_signals_{save_name}_seed{self.cfg.seed}"
         )
 
         os.makedirs(directory, exist_ok=True)
@@ -411,9 +427,9 @@ class GBSearchRunner:
         :mod:`pickle`.
         """
         max_signals_per_window = (
-            self.cfg["max_signals_per_window_first_run"]
+            self.cfg.max_signals_per_window_first_run
             if self.which_run in ["even1st"]
-            else self.cfg["max_signals_per_window"]
+            else self.cfg.max_signals_per_window
         )
 
         found_sources_sorted_initial = self.load_initial_guess()
@@ -422,9 +438,9 @@ class GBSearchRunner:
             self.tdi_fs,
             self.Tobs,
             waveform_args=self.waveform_args,
-            dt=self.cfg["dt"],
-            SNR_threshold=self.cfg["snr_threshold"],
-            channel_combination=self.cfg["channel_combination"],
+            dt=self.cfg.dt,
+            SNR_threshold=self.cfg.snr_threshold,
+            channel_combination=self.cfg.channel_combination,
             max_signals_per_window=max_signals_per_window,
             found_sources_previous=found_sources_sorted_initial,
         )
@@ -445,7 +461,7 @@ class GBSearchRunner:
         if self.output_filename is None:
             raise RuntimeError("Output filename not prepared.")
         with open(self.output_filename, "wb") as f:
-            import pickle
+            
 
             print("saving found sources to", self.output_filename)
             pickle.dump(found_sources, f)
@@ -454,7 +470,14 @@ class GBSearchRunner:
         self.load_data()
         self.prepare_frequency_windows()
         self.subtract_neighboring_windows()
-        self.remove_even_windows_if_unchanged()
+        if self.which_run not in ["even"]:
+            self.remove_even_windows_if_unchanged()
         self.prepare_output_paths()
         self.run_segment_search()
 
+    def create_skipped_windows_file(self) -> None:
+        self.load_data()
+        self.prepare_frequency_windows()
+        self.remove_even_windows_if_unchanged(frequency_windows_to_update=self.frequencies_search_full)
+        with open(self.savepath + f"/skipped_even1st_sources_{self.cfg.data_set}_SNR_threshold_{int(self.cfg.snr_threshold)}_seed{self.cfg.seed}.pkl", "wb") as f:
+            pickle.dump(self.skipped_sources, f)

@@ -19,22 +19,11 @@ import pickle
 from os import listdir
 from os.path import isfile, join
 from typing import List
-
+import json
+import h5py
 import numpy as np
 
 from globalGB.search_utils_GB import PARAM_INDICES
-
-
-def get_project_root() -> str:
-    """
-    Return the project root two levels above the current working directory.
-
-    This mirrors the convention used elsewhere in the project where the LDC
-    data directory is placed at ``<project_root>/LDC``.
-    """
-    cwd = os.getcwd()
-    parent = os.path.dirname(cwd)
-    return os.path.dirname(parent)
 
 
 def load_sources_from_file(path: str):
@@ -135,13 +124,14 @@ def main(argv: list[str] | None = None) -> None:
     _data_set = str(argv[0])
     which_run = str(argv[1])
 
-    project_root = get_project_root()
+    with open('globalGB/GB_search_config.json', 'r') as f:
+        config = json.load(f)
+    base_found_dir = config["save_path"]
 
     # Paths are currently hard-coded for Mojito, SNR threshold 9 and seed 1.
-    base_found_dir = os.path.join(project_root, "LDC", "Mojito", "found_signals", "GB")
-    run_suffix = f"{which_run}_" if which_run else ""
-    run_name = f"/found_signals_Mojito_SNR_threshold_9_{run_suffix}seed1"
-    save_folder = "/found_signals_Mojito_SNR_threshold_9_seed1"
+    if which_run not in [""]:
+        which_run = which_run + "_"
+    run_name = f"/found_signals_{config['data_set']}_SNR_threshold_{int(config['snr_threshold'])}_{which_run}seed{config['seed']}"
 
     input_dir = base_found_dir + run_name
     if not os.path.isdir(input_dir):
@@ -160,11 +150,17 @@ def main(argv: list[str] | None = None) -> None:
 
     print("number of recovered sources:", len(flat_sources_sorted))
 
-    output_base = base_found_dir + save_folder
+    output_base = base_found_dir
     os.makedirs(output_base, exist_ok=True)
 
     output_path = output_base + run_name + ".npy"
     np.save(output_path, flat_sources_sorted)
+
+    # save as hdf5 file
+    output_path = output_base + run_name + ".h5"
+    with h5py.File(output_path, 'w') as f:
+        f.create_dataset('recovered_sources', data=flat_sources_sorted)
+
     print(f"Saved merged catalogue to: {output_path}")
 
 
