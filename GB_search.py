@@ -6,8 +6,8 @@ def parse_args(argv=None):
     import argparse
 
     parser = argparse.ArgumentParser(description="Search for Galactic binaries in Mojito data.")
-    parser.add_argument("batch_index", type=int, help="Batch index of frequency windows to process.")
     parser.add_argument("which_run", type=str, choices=["even1st", "even", "odd"], help="Window set to analyze.")
+    parser.add_argument("batch_index", type=int, help="Batch index of frequency windows to process.")
     return parser.parse_args(argv)
 
 
@@ -21,8 +21,7 @@ def main(argv=None):
         which_run=args.which_run,
         config=config,
     )
-    # runner.run()
-    runner.create_skipped_windows_file()
+    runner.run()
 
 
 if __name__ == "__main__":

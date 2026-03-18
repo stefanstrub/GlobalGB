@@ -1,6 +1,6 @@
 {
     "data_set": "Mojito",
-    "dt": 10.0,
+    "dt": 2.5,
     "snr_threshold": 9.0,
     "tdi_generation": 2,
     "max_signals_per_window": 10,
@@ -10,9 +10,9 @@
     "seed": 1,
     "batch_size": 10,
     "data_path": "/home/stefan/LDC/Mojito/data/GB/L1_0p4Hz/GB_EMRI_731d_2.5s_L1_source0_0_20251205T020733787241Z_noisy.h5",
-    "save_path": "/home/stefan/LDC/Mojito/found_signals/GB_EMRI/GB/",
+    "save_path": "/home/stefan/LDC/Mojito/found_signals/GB_EMRI/GB",
     "catalog_path": "/home/stefan/LDC/Mojito/catalogues/",
     "match_criteria": "overlap",
     "overlap_threshold": 0.9,
-    "scaled_snr_error_threshold": 0.3
+    "scaled_error_threshold": 0.3
 }

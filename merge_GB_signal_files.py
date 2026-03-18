@@ -3,8 +3,8 @@ Utility script to merge per-window GB search outputs into a single file.
 
 This script is primarily kept as an example / helper and is not part of the
 core library API.  It scans a directory containing the per-batch GB search
-results, concatenates all recovered sources into a single array, sorts them
-by frequency and writes the result as a NumPy ``.npy`` file.
+results (HDF5), concatenates all recovered sources into a single array, sorts
+them by frequency and writes the result as a single HDF5 file.
 
 The current implementation is tailored to the Mojito configuration with
 ``SNR_threshold=9`` and ``seed=1`` and expects the same directory structure
@@ -15,10 +15,9 @@ from __future__ import annotations
 
 import os
 import sys
-import pickle
 from os import listdir
 from os.path import isfile, join
-from typing import List
+from typing import List, Tuple
 import json
 import h5py
 import numpy as np
@@ -26,63 +25,52 @@ import numpy as np
 from globalGB.search_utils_GB import PARAM_INDICES
 
 
-def load_sources_from_file(path: str):
+def load_sources_from_file(path: str) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Load a single per-window result file.
+    Load a single per-batch HDF5 result file.
 
-    The function first tries to unpickle the file; if that fails it falls back
-    to ``numpy.load(..., allow_pickle=True)`` for backwards compatibility.
+    Returns
+    -------
+    sources : np.ndarray
+        2-D array of recovered source parameters (may be empty).
+    wall_times : np.ndarray
+        1-D array of per-window wall-clock times.
+    number_of_evaluations : np.ndarray
+        1-D array of per-window number of function evaluations.
     """
-    try:
-        with open(path, "rb") as f:
-            return pickle.load(f)
-    except Exception:
-        return np.load(path, allow_pickle=True).tolist()
+    with h5py.File(path, "r") as f:
+        sources = f["recovered_sources"][:]
+        # get wall times from the file
+        wall_times = f["wall_times"][:] if "wall_times" in f else np.array([])
+        number_of_evaluations = f["number_of_evaluations"][:] if "number_of_evaluations" in f else np.array([])
+    return sources, wall_times, number_of_evaluations
 
 
-def flatten_found_sources(raw_sources: List, which_run: str) -> np.ndarray:
+def flatten_found_sources(
+    raw_sources: List[Tuple[np.ndarray, np.ndarray, np.ndarray]],
+) -> np.ndarray:
     """
-    Flatten the nested per-window search outputs into a 2D array.
+    Concatenate per-batch recovered sources into a single 2-D array.
 
     Parameters
     ----------
     raw_sources
-        List of objects as loaded from the per-window result files.
-    which_run
-        Run label passed on the command line (``"even1st"``, ``"even"`` or
-        ``"odd"``).  For non-empty labels we expect the hierarchical data
-        structure produced by :class:`Segment_GB_Searcher`.
+        List of ``(sources, wall_times, number_of_evaluations)`` tuples as returned by
+        :func:`load_sources_from_file`.
     """
-    found_sources_mp_unsorted: List[np.ndarray] = []
-    times: List[float] = []
-
-    for sources in raw_sources:
-        for entry in sources:
-            if which_run:
-                # `entry` is a tuple-like structure; index 3 holds the array of
-                # recovered sources, index 4 the central frequency, index 5 the
-                # wall-clock time for this window.
-                times.append(entry[5])
-                if len(entry[3]) > 0:
-                    found_sources_mp_unsorted.append(entry[3])
-            else:
-                # Backwards-compatibility path where each file already contains
-                # a flat list of sources.
-                found_sources_mp_unsorted.append(entry)
-
-    if not found_sources_mp_unsorted:
+    all_sources: List[np.ndarray] = []
+    total_time = 0.0
+    total_number_of_evaluations = 0
+    for sources, wall_times, number_of_evaluations in raw_sources:
+        if sources.size > 0:
+            all_sources.append(sources)
+        if wall_times.size > 0:
+            total_time += np.sum(wall_times)
+        if number_of_evaluations.size > 0:
+            total_number_of_evaluations += np.sum(number_of_evaluations)
+    if not all_sources:
         return np.empty((0, len(PARAM_INDICES)))
-
-    if which_run:
-        found_sources_in_flat = np.concatenate(found_sources_mp_unsorted)
-    else:
-        found_sources_in_flat = np.asarray(found_sources_mp_unsorted)
-
-    # Report total runtime in hours for quick diagnostics.
-    if times:
-        print("time", np.round(np.sum(times) / 3600.0, 1), "hours")
-
-    return np.asarray(found_sources_in_flat)
+    return np.concatenate(all_sources), total_time, total_number_of_evaluations
 
 
 def sort_by_frequency(found_sources: np.ndarray) -> np.ndarray:
@@ -111,26 +99,27 @@ def main(argv: list[str] | None = None) -> None:
     The script expects two positional arguments:
 
     - ``data_set`` (currently unused, kept for future generalisation), and
-    - ``which_run``: one of ``"even1st"``, ``"even"``, ``"odd"``.
+    - ``which_run``: one of ``"even1st"``, ``"even"``, ``"odd"``, ``"global"``.
     """
     if argv is None:
         argv = sys.argv[1:]
 
-    if len(argv) < 2:
+    if len(argv) < 1:
         raise SystemExit(
-            "Usage: python merge_GB_signal_files.py <data_set> <which_run>"
+            "Usage: python merge_GB_signal_files.py <data_set> <which_run> (one of 'even1st', 'even', 'odd', 'global')"
         )
 
-    _data_set = str(argv[0])
-    which_run = str(argv[1])
+    which_run = str(argv[0])
 
     with open('globalGB/GB_search_config.json', 'r') as f:
         config = json.load(f)
     base_found_dir = config["save_path"]
 
     # Paths are currently hard-coded for Mojito, SNR threshold 9 and seed 1.
-    if which_run not in [""]:
+    if which_run not in ["global"]:
         which_run = which_run + "_"
+    if which_run in ["global"]:
+        which_run = ""
     run_name = f"/found_signals_{config['data_set']}_SNR_threshold_{int(config['snr_threshold'])}_{which_run}seed{config['seed']}"
 
     input_dir = base_found_dir + run_name
@@ -145,16 +134,17 @@ def main(argv: list[str] | None = None) -> None:
         load_sources_from_file(os.path.join(input_dir, fname)) for fname in file_names
     ]
 
-    flat_sources = flatten_found_sources(raw_sources, which_run=which_run)
+    flat_sources, wall_times, number_of_evaluations = flatten_found_sources(raw_sources)
     flat_sources_sorted = sort_by_frequency(flat_sources)
 
     print("number of recovered sources:", len(flat_sources_sorted))
+    print("total wall time:", np.round(wall_times/60, 1), "minutes")
+    print("total number of function evaluations:", number_of_evaluations)
 
     output_base = base_found_dir
+    if which_run in ["odd_", "even_"]:
+        output_base = base_found_dir + f"/found_signals_{config['data_set']}_SNR_threshold_{int(config['snr_threshold'])}_global_seed{config['seed']}"
     os.makedirs(output_base, exist_ok=True)
-
-    output_path = output_base + run_name + ".npy"
-    np.save(output_path, flat_sources_sorted)
 
     # save as hdf5 file
     output_path = output_base + run_name + ".h5"

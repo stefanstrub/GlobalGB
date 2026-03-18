@@ -29,7 +29,6 @@ import jax.numpy as jnp
 import lisaorbits
 import numpy as np
 import pandas as pd
-import pickle
 
 from jaxgb.jaxgb import JaxGB
 
@@ -124,8 +123,7 @@ class GBSearchRunner:
           generator (TDI generation scheme, interpolated LISA orbits, etc.).
         """
         loader = LISADataLoader(
-            dataset=self.cfg.data_set,
-            base_path=os.path.join(self.grandparent, "LDC"),
+            config=self.cfg,
         )
 
         loader.load(
@@ -247,7 +245,9 @@ class GBSearchRunner:
             return
 
         start = time.time()
-        save_directory = f"/found_signals_{self.cfg.data_set}_SNR_threshold_{int(self.cfg.snr_threshold)}_seed{self.cfg.seed}"
+        save_directory = f"/found_signals_{self.cfg.data_set}_SNR_threshold_{int(self.cfg.snr_threshold)}_global_seed{self.cfg.seed}"
+        if self.which_run in ["odd"]:
+            save_directory = ""
 
         if self.which_run in ["odd"]:
             save_name_previous = (
@@ -258,9 +258,8 @@ class GBSearchRunner:
                 f"/found_signals_{self.cfg.data_set}_SNR_threshold_{int(self.cfg.snr_threshold)}_odd_seed{self.cfg.seed}"
             )
 
-        found_sources_flat = np.load(
-            self.savepath + save_directory + save_name_previous + ".npy", allow_pickle=True
-        )
+        with h5py.File(self.savepath + save_directory + save_name_previous + ".h5", "r") as fid:
+            found_sources_flat = fid["recovered_sources"][:]
         found_sources_flat_df = pd.DataFrame(found_sources_flat, columns=PARAM_NAMES)
         found_sources_outside_flat_df = found_sources_flat_df.sort_values("Frequency")
 
@@ -319,17 +318,15 @@ class GBSearchRunner:
             f"/found_signals_{self.cfg.data_set}_SNR_threshold_{int(self.cfg.snr_threshold)}_even1st_seed{self.cfg.seed}"
         )
 
-        found_sources_flat = np.load(
-            self.savepath + save_directory + save_name_previous + ".npy", allow_pickle=True
-        )
+        with h5py.File(self.savepath + save_directory + save_name_previous + ".h5", "r") as fid:
+            found_sources_flat = fid["recovered_sources"][:]
         found_sources_previous_df = pd.DataFrame(found_sources_flat, columns=PARAM_NAMES).sort_values("Frequency")
         save_name_previous_odd = (
             f"/found_signals_{self.cfg.data_set}_SNR_threshold_{int(self.cfg.snr_threshold)}_odd_seed{self.cfg.seed}"
         )
 
-        found_sources_flat = np.load(
-            self.savepath + save_directory + save_name_previous_odd + ".npy", allow_pickle=True
-        )
+        with h5py.File(self.savepath + save_directory + save_name_previous_odd + ".h5", "r") as fid:
+            found_sources_flat = fid["recovered_sources"][:]
         found_sources_outside_flat_df = pd.DataFrame(found_sources_flat, columns=PARAM_NAMES).sort_values("Frequency")
 
         for win in frequency_windows_to_update:
@@ -410,7 +407,7 @@ class GBSearchRunner:
             directory,
             f"found_signals_batch_index_{self.batch_index}_"
             f"{int(np.round(self.search_range[0] * 1e9))}nHz_to"
-            f"{int(np.round(self.search_range[1] * 1e9))}nHz_{save_name}.pkl",
+            f"{int(np.round(self.search_range[1] * 1e9))}nHz_{save_name}.h5",
         )
         print("output filename", fn)
         self.output_filename = fn
@@ -423,8 +420,7 @@ class GBSearchRunner:
         iterates over all windows in ``self.frequencies_search``.  For each
         window it launches the optimisation in the underlying
         :class:`GB_Searcher`, collects all recovered sources and finally
-        serialises the full list of results to ``self.output_filename`` using
-        :mod:`pickle`.
+        saves the recovered parameters to ``self.output_filename`` as HDF5.
         """
         max_signals_per_window = (
             self.cfg.max_signals_per_window_first_run
@@ -446,31 +442,55 @@ class GBSearchRunner:
         )
 
         start = time.time()
-        found_sources = []
+        search_results = []
         for f_low, f_high in self.frequencies_search:
-            found_sources.append(GB_segment_searcher.search(f_low, f_high))
+            search_results.append(GB_segment_searcher.search(f_low, f_high))
 
+        search_time = time.time() - start
         print(
             "searched ",
             len(self.frequencies_search),
             " segments in ",
-            np.round((time.time() - start) / 60, 1),
+            np.round(search_time / 60, 1),
             "minutes",
         )
 
         if self.output_filename is None:
             raise RuntimeError("Output filename not prepared.")
-        with open(self.output_filename, "wb") as f:
-            
 
-            print("saving found sources to", self.output_filename)
-            pickle.dump(found_sources, f)
+        all_recovered: list[np.ndarray] = []
+        all_wall_times: list[float] = []
+        function_evaluations: list[int] = []
+        for entry in search_results:
+            all_wall_times.append(entry[5])
+            sources_inside = entry[3]
+            if len(sources_inside) > 0:
+                all_recovered.append(np.asarray(sources_inside))
+            function_evaluations.append(np.sum(np.array(entry[2])))
+        recovered = (
+            np.concatenate(all_recovered)
+            if all_recovered
+            else np.empty((0, len(PARAM_NAMES)))
+        )
+
+        # if self has skipped sources attribute, add them to the recovered sources
+        if hasattr(self, 'skipped_sources'):
+            recovered = np.concatenate([recovered, self.skipped_sources])
+
+        print("search time", search_time)
+        print("total wall time", np.sum(all_wall_times))
+        print("total number of function evaluations", np.sum(function_evaluations))
+        print("saving found sources to", self.output_filename)
+        with h5py.File(self.output_filename, "w") as f:
+            f.create_dataset("recovered_sources", data=recovered)
+            f.create_dataset("wall_times", data=np.array([search_time], dtype=np.float64))
+            f.create_dataset("number_of_evaluations", data=np.array(function_evaluations))
 
     def run(self) -> None:
         self.load_data()
         self.prepare_frequency_windows()
         self.subtract_neighboring_windows()
-        if self.which_run not in ["even"]:
+        if self.which_run in ["even"]:
             self.remove_even_windows_if_unchanged()
         self.prepare_output_paths()
         self.run_segment_search()
@@ -479,5 +499,9 @@ class GBSearchRunner:
         self.load_data()
         self.prepare_frequency_windows()
         self.remove_even_windows_if_unchanged(frequency_windows_to_update=self.frequencies_search_full)
-        with open(self.savepath + f"/skipped_even1st_sources_{self.cfg.data_set}_SNR_threshold_{int(self.cfg.snr_threshold)}_seed{self.cfg.seed}.pkl", "wb") as f:
-            pickle.dump(self.skipped_sources, f)
+        fn = os.path.join(
+            self.savepath,
+            f"skipped_even1st_sources_{self.cfg.data_set}_SNR_threshold_{int(self.cfg.snr_threshold)}_seed{self.cfg.seed}.h5",
+        )
+        with h5py.File(fn, "w") as f:
+            f.create_dataset("skipped_sources", data=self.skipped_sources)

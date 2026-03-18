@@ -20,11 +20,11 @@ import jax.numpy as jnp
 import polars as pl
 import h5py
 import lisaorbits
-import pickle
 from matplotlib import pyplot as plt, rcParams
 import json
 
 from jaxgb.jaxgb import JaxGB
+from jaxgb.params import GBObject
 
 from globalGB.search_utils_GB import GB_Searcher, create_frequency_windows, max_signal_bandwidth, PARAM_NAMES, PARAM_INDICES, GBConfig
 from DataLoader.data_loader import LISADataLoader
@@ -162,7 +162,7 @@ class SignalMatcher:
         
         return sh / np.sqrt(ss * hh)
     
-    def scaled_snr_error(self, params_injected: np.ndarray, params_found: np.ndarray) -> float:
+    def scaled_error(self, params_injected: np.ndarray, params_found: np.ndarray) -> float:
         """Compute scaled SNR error between injected and found signals."""
         A_inj, E_inj, _, A_found, E_found, _ = self.waveform_calc.align_waveforms(
             params_injected, params_found
@@ -177,7 +177,7 @@ class SignalMatcher:
         return error / (np.sqrt(ss) * np.sqrt(hh))
     
     def match_signals(self, found_sources: np.ndarray, injected_catalog: pl.DataFrame,
-                      use_overlap: bool = True, verbose: bool = True
+                      match_criteria: str = 'overlap', verbose: bool = True
                      ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Match found signals to injected catalog sources.
@@ -185,7 +185,7 @@ class SignalMatcher:
         Args:
             found_sources: Array of found signal parameters
             injected_catalog: DataFrame of injected catalog parameters
-            use_overlap: If True, use overlap metric; otherwise use scaled SNR error
+            match_criteria: Match criteria to use
             verbose: Print progress information
             
         Returns:
@@ -214,22 +214,26 @@ class SignalMatcher:
             if len(candidates) == 0:
                 if verbose:
                     print(f'No match candidates for source {i} at f={freq:.6f}')
+                injected_matches.append(np.zeros(len(PARAM_NAMES)))
+                found_matches.append(found_params)
+                match_values.append(np.nan)
                 continue
             
             match_scores = []
             for k in range(len(candidates)):
                 candidate_params = np.array(candidates[k])[0]
-                if use_overlap:
+                if match_criteria == 'overlap':
                     score = self.overlap(candidate_params, found_params)
-                else:
-                    score = self.scaled_snr_error(candidate_params, found_params)
+                elif match_criteria == 'scaled_error':
+                    score = self.scaled_error(candidate_params, found_params)
                 match_scores.append(score)
             
-            if use_overlap:
+            if match_criteria == 'overlap':
                 best_idx = int(np.nanargmax(match_scores))
-            else:
+            elif match_criteria == 'scaled_error':
                 best_idx = int(np.nanargmin(match_scores))
-            
+            else:
+                raise ValueError(f'Invalid match criteria: {match_criteria}. Must be "overlap" or "scaled_error".')
             injected_matches.append(np.array(candidates[best_idx])[0])
             found_matches.append(found_params)
             match_values.append(match_scores[best_idx])
@@ -249,13 +253,14 @@ class MatchResults:
     injected_sources: np.ndarray
     match_values: np.ndarray
     threshold: float
-    use_overlap: bool
+    descending: bool
     
     @property
     def match_mask(self) -> np.ndarray:
-        if self.use_overlap:
+        if self.descending:
             return self.match_values > self.threshold
-        return self.match_values < self.threshold
+        else:
+            return self.match_values < self.threshold
     
     @property
     def matched_found(self) -> np.ndarray:
@@ -329,8 +334,7 @@ class MatchResults:
         print(f'{"="*60}')
         print(f'Matched signals: {self.n_matched} / {self.n_total} found')
         print(f'Match fraction: {self.match_fraction:.2%}')
-        print(f'Sensitivity (matched/injected): {self.n_matched/n_injected:.2%}')
-        print(f'Threshold: {self.threshold} ({"overlap" if self.use_overlap else "SNR error"})')
+        print(f'Threshold: {self.threshold}')
         print(f'{"="*60}\n')
     
     def save(self, path: str, name: str):
@@ -340,22 +344,28 @@ class MatchResults:
             f.create_dataset('found_sources', data=self.found_sources)
             f.create_dataset('injected_sources', data=self.injected_sources)
             f.create_dataset('match_values', data=self.match_values)
-            f.attrs['threshold'] = self.threshold
-            f.attrs['use_overlap'] = self.use_overlap
+            f.create_dataset('found_sources_matched', data=self.matched_found)
+            f.create_dataset('injected_sources_matched', data=self.matched_injected)
+            f.create_dataset('found_sources_unmatched', data=self.unmatched_found)
+            f.create_dataset('injected_sources_unmatched', data=self.unmatched_injected)
+            f.create_dataset('match_values_matched', data=self.matched_values)
+            f.create_dataset('match_values_unmatched', data=self.unmatched_values)
         print(f'Results saved to {filepath}')
-    
-    @classmethod
-    def load(cls, filepath: str) -> 'MatchResults':
-        """Load results from HDF5 file."""
-        with h5py.File(filepath, 'r') as f:
-            return cls(
-                found_sources=f['found_sources'][:],
-                injected_sources=f['injected_sources'][:],
-                match_values=f['match_values'][:],
-                threshold=f.attrs['threshold'],
-                use_overlap=f.attrs['use_overlap'],
-            )
 
+    def load(self, path: str, name: str):
+        """Load results from HDF5 file."""
+        filepath = Path(path) / f'match_results_{name}.h5'
+        with h5py.File(filepath, 'r') as f:
+            self.found_sources = f['found_sources'][:]
+            self.injected_sources = f['injected_sources'][:]
+            self.match_values = f['match_values'][:]
+            self.found_sources_matched = f['found_sources_matched'][:]
+            self.injected_sources_matched = f['injected_sources_matched'][:]
+            self.found_sources_unmatched = f['found_sources_unmatched'][:]
+            self.injected_sources_unmatched = f['injected_sources_unmatched'][:]
+            self.match_values_matched = f['match_values_matched'][:]
+            self.match_values_unmatched = f['match_values_unmatched'][:]
+        print(f'Results loaded from {filepath}')
 
 class GBMatchingPipeline:
     """Main pipeline for matching gravitational wave binary signals."""
@@ -368,18 +378,19 @@ class GBMatchingPipeline:
         self.matcher: Optional[SignalMatcher] = None
         self.frequencies: List[Tuple[float, float]] = []
         
-    def setup(self, data_fn: Optional[str] = None):
+    def setup(self, data_path: Optional[str] = None):
         """Initialize data loader, waveform generator, and matcher."""
         
         # Load data
         self.loader = LISADataLoader(config=self.config)
-        data_fn = self.loader.data_path
+        if data_path is None:
+            data_path = self.loader.data_path
         
-        self.loader.load(data_fn=data_fn)
+        self.loader.load(data_path=data_path)
         self.loader._load_mojito_wdwd_catalog()
         
         # Load orbits and create waveform generator
-        with h5py.File(data_fn, 'r') as fid:
+        with h5py.File(data_path, 'r') as fid:
             orbits_data = fid['orbits']
             sampling = dict(orbits_data["sampling"].attrs)
             orbits = lisaorbits.InterpolatedOrbits(
@@ -408,25 +419,36 @@ class GBMatchingPipeline:
         self.matcher = SignalMatcher(self.waveform_calc, self.loader.Tobs)
         
         # Create frequency windows
-        search_range = [0.0003, self.config.f_nyquist]
+        f_nyquist = 1/(2*self.loader.dt)
+        search_range = [0.0003, f_nyquist]
         self.frequencies = create_frequency_windows(search_range, self.loader.Tobs)
         
         # Trim frequencies to valid range
         while (self.frequencies[-1][1] + 
-               (self.frequencies[-1][1] - self.frequencies[-1][0])/2 > self.config.f_nyquist):
+               (self.frequencies[-1][1] - self.frequencies[-1][0])/2 > f_nyquist):
             self.frequencies = self.frequencies[:-1]
         
         print(f'Setup complete. {len(self.frequencies)} frequency windows.')
     
     def load_found_sources(self) -> np.ndarray:
         """Load found sources from file."""
-        fn = os.path.join(
-            self.config.found_signals_path,
-            f'found_signals_noisy_{self.config.save_name}_flat.npy'
+        found_sources_path = os.path.join(
+            self.config.save_path,
+            f'found_signals_{self.config.save_name}.h5'
         )
-        sources = np.load(fn, allow_pickle=False)
+        with h5py.File(found_sources_path, 'r') as f:
+            sources = f['recovered_sources'][:]
         print(f'Loaded {len(sources)} found sources')
         return sources
+    
+    def prepare_found_sources(self, found_sources: np.ndarray) -> np.ndarray:
+        """Prepare found sources for matching."""
+        # shift the parameters to the correct t0
+        t_init = 97729089.327664 
+        # shift found sources to the same initial time
+        gbo = GBObject.from_jaxgb_params(jnp.array(found_sources), t_init=self.loader.t0)
+        found_sources_t_init = gbo.to_jaxgb_array(t0=t_init)
+        return np.array(found_sources_t_init)
     
     def load_injected_catalog(self) -> pl.DataFrame:
         """Load and prepare injected source catalog."""
@@ -434,18 +456,19 @@ class GBMatchingPipeline:
         cat_df = pl.DataFrame(cat_array, schema=PARAM_NAMES)
         cat_df = cat_df.sort('Frequency')
         print(f'Loaded {len(cat_df)} injected sources')
-        return cat_df
+        return np.array(cat_df)
     
     def prepare_injected_for_matching(self, injected_df: pl.DataFrame, 
                                       save_name: str = 'Mojito_WDWD') -> np.ndarray:
         """Filter injected catalog to relevant frequency windows."""
         cache_fn = os.path.join(
             self.config.save_path, 
-            f'pGB_injected_no_SNR_{save_name}.npy'
+            f'pGB_injected_no_SNR_{save_name}.h5'
         )
         
         if os.path.exists(cache_fn):
-            pGB_injected = np.load(cache_fn, allow_pickle=True)
+            with h5py.File(cache_fn, 'r') as f:
+                pGB_injected = f['injected_sources'][:]
             print(f'Loaded cached injected sources: {len(pGB_injected)}')
         else:
             pGB_injected = []
@@ -456,32 +479,29 @@ class GBMatchingPipeline:
                     (pl.col('Frequency') > freq_window[0]) & 
                     (pl.col('Frequency') < freq_window[1])
                 )
-                filtered = filtered.sort('Amplitude', descending=True)[:self.config.max_injected_per_window]
+                filtered = filtered.sort('Amplitude', descending=True)[:100]
                 pGB_injected.append(np.array(filtered))
             
             pGB_injected = np.concatenate(pGB_injected)
-            np.save(cache_fn, pGB_injected)
+            with h5py.File(cache_fn, 'w') as f:
+                f.create_dataset('injected_sources', data=pGB_injected)
             print(f'Saved {len(pGB_injected)} filtered injected sources')
         
-        return pGB_injected
+        injected_df = pl.DataFrame(pGB_injected, schema=PARAM_NAMES)
+        injected_df = injected_df.sort('Frequency')
+        return injected_df
     
     def run_matching(self, found_sources: np.ndarray, 
-                    injected_catalog: pl.DataFrame) -> MatchResults:
+                    injected_catalog: pl.DataFrame) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Run the matching process."""
         found, injected, values = self.matcher.match_signals(
             found_sources,
             injected_catalog,
-            use_overlap=self.use_overlap,
+            match_criteria=self.config.match_criteria,
             verbose=True
         )
         
-        return MatchResults(
-            found_sources=found,
-            injected_sources=injected,
-            match_values=values,
-            threshold=self.config.overlap_threshold,
-            use_overlap=self.config.use_overlap,
-        )
+        return found, injected, values
     
     def plot_frequency_window(self, results: MatchResults, 
                              freq_start: float, n_windows: int = 1):
@@ -540,6 +560,7 @@ def main():
     tdi_fs = loader.tdi_fs
     config.Tobs = loader.Tobs
     config.t0 = loader.t0
+    config.save_name = f"{config.data_set}_SNR_threshold_{int(config.snr_threshold)}_seed{config.seed}"
     
     # Create and run pipeline
     pipeline = GBMatchingPipeline(config)
@@ -547,30 +568,53 @@ def main():
     
     # Load data
     found_sources = pipeline.load_found_sources()
+    found_sources = pipeline.prepare_found_sources(found_sources)
     injected_df = pipeline.load_injected_catalog()
+    injected_df = pl.DataFrame(injected_df, schema=PARAM_NAMES)
+    injected_df = pipeline.prepare_injected_for_matching(injected_df, config.save_name)
     
     # Sort found sources
     found_df = pl.DataFrame(found_sources, schema=PARAM_NAMES).sort('Frequency')
     found_sources = np.array(found_df)
     
     # Check for cached results
-    cache_path = os.path.join(config.save_path, 'found_sources.h5')
+    cache_path = os.path.join(config.save_path, f'found_sources_{config.save_name}_{config.match_criteria}.h5')
     
     if os.path.exists(cache_path):
-        print('Loading cached matching results...')
+        print('Loading cached found sources...')
         with h5py.File(cache_path, 'r') as f:
-            results = MatchResults(
-                found_sources=f['found_sources'][:],
-                injected_sources=f['injected_sources'][:],
-                match_values=f['scaled_error'][:],
-                threshold=config.overlap_threshold,
-                use_overlap=config.use_overlap,
-            )
+            found_sources = f['found_sources'][:]
+            injected_sources = f['injected_sources'][:]
+            match_values = f['match_values'][:]
+            match_criteria = f.attrs['match_criteria']
     else:
-        print('Running matching (this may take a while)...')
-        results = pipeline.run_matching(found_sources, injected_df)
-        results.save(config.save_path, config.save_name)
-    
+        print('Running matching...')
+        found_sources, injected_sources, match_values = pipeline.run_matching(found_sources, injected_df)
+        match_criteria = config.match_criteria
+        with h5py.File(cache_path, 'w') as f:
+            f.create_dataset('found_sources', data=found_sources)
+            f.create_dataset('injected_sources', data=injected_sources)
+            f.create_dataset('match_values', data=match_values)
+            f.attrs['match_criteria'] = config.match_criteria
+
+    if config.match_criteria == 'overlap':
+        match_criteria_threshold = config.overlap_threshold
+        descending = True
+    elif config.match_criteria == 'scaled_error':
+        match_criteria_threshold = config.scaled_error_threshold
+        descending = False
+    else:
+        raise ValueError(f'Invalid match criteria: {config.match_criteria}')
+    results = MatchResults(
+        found_sources=found_sources,
+        injected_sources=injected_sources,
+        match_values=match_values,
+        descending=descending,
+        threshold=match_criteria_threshold,
+    )
+    results.save(config.save_path, f'{config.save_name}_{config.match_criteria}')
+    results.load(config.save_path, f'{config.save_name}_{config.match_criteria}')
+
     # Print summary
     results.print_summary(n_injected=len(injected_df))
     

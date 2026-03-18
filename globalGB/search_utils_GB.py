@@ -158,6 +158,12 @@ def frequency_derivative_tyson_upper(f):
 def frequency_derivative_tyson_lower(f):
     return -5*10**-6*f**(13/3)
 
+def frequency_derivative_mojito_lower(f):
+    return -2*10**-20*(f/0.0003)**(16/3)
+
+def frequency_derivative_mojito_upper(f):
+    return 3*10**-21*(f/0.0001)**(11/3)
+
 def scaletooriginal(previous_max, boundaries, parameters=None):
     """Scales the parameters back to their original values.
     previous_max: array of parameters in [0,1] range (shape: (8,) or (n_signals, 8))
@@ -319,7 +325,6 @@ def reduce_boundaries(maxpGB, boundaries, parameters=None, ratio=0.1):
         bounds_arr = np.array([boundaries[p] for p in PARAM_NAMES])
     else:
         bounds_arr = np.asarray(boundaries)
-    
     boundaries_reduced = bounds_arr.copy()
     
     for i, param in enumerate(PARAM_NAMES):
@@ -507,21 +512,18 @@ class GB_Searcher:
             
         f_0 = fmin
         f_transfer = 19.1*10**-3
-        snr = 7
-        amplitude_lower = 2*snr/(Tobs * np.sin(f_0/ f_transfer)**2/self.SA[0])**0.5
-        snr = 1000
-        amplitude_upper = 2*snr/(Tobs * np.sin(f_0/ f_transfer)**2/self.SA[0])**0.5
-        amplitude = [amplitude_lower, amplitude_upper]
-        fd_range = [frequency_derivative_tyson_lower(lower_frequency),frequency_derivative(upper_frequency,M_chirp_upper_boundary)]
+        # snr = 7
+        # amplitude_lower = 2*snr/(Tobs * np.sin(f_0/ f_transfer)**2/self.SA[0])**0.5
+        # snr = 1000
+        # amplitude_upper = 2*snr/(Tobs * np.sin(f_0/ f_transfer)**2/self.SA[0])**0.5
+        # amplitude = [amplitude_lower, amplitude_upper]
+        fd_range = [frequency_derivative_mojito_lower(lower_frequency),frequency_derivative_mojito_upper(upper_frequency)]
 
         self.boundaries = deepcopy(boundaries_dict)
         if 'Frequency' not in self.boundaries.keys():
             self.boundaries['Frequency'] = frequency_boundaries
         if 'FrequencyDerivative' not in self.boundaries.keys():
             self.boundaries['FrequencyDerivative'] = fd_range
-        if 'Amplitude' not in self.boundaries.keys():
-            self.boundaries['Amplitude'] =  [np.log10(amplitude[0]),np.log10(amplitude[1])]
-
         if self.boundaries['FrequencyDerivative'][0] > self.boundaries['FrequencyDerivative'][1]:
             c = self.boundaries['FrequencyDerivative'][0]
             self.boundaries['FrequencyDerivative'][0] = self.boundaries['FrequencyDerivative'][1]
