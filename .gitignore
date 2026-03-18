@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+
+# Local config
+globalGB/GB_search_config.json
+
+# Data (if large/generated)
+*.h5
+*.npy
+
+# Jupyter
+.ipynb_checkpoints/
