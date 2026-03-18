@@ -18,6 +18,7 @@ Most public functions and classes are documented with NumPy-style docstrings
 so they can be used directly in analysis scripts or from interactive sessions.
 """
 
+from dataclasses import dataclass, field
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 import scipy
@@ -99,6 +100,15 @@ N_PARAMS_NO_AMP = N_PARAMS - 1  # Without Amplitude
 PARAM_NAMES_NO_AMP = [p for p in PARAM_NAMES if p != 'Amplitude']
 PARAM_LOG_UNIFORM = ['Amplitude']  # Default log-uniform parameters
 
+
+@dataclass
+class GBConfig:
+    """Configuration for the GB matching pipeline."""
+    def __init__(self, config: dict):
+        for key, value in config.items():
+            setattr(self, key, value)
+
+
 def scaletooriginal_jax(previous_max, boundaries):
     """
     JAX version of `scaletooriginal` for differentiable objectives.
@@ -147,6 +157,12 @@ def frequency_derivative_tyson_upper(f):
 
 def frequency_derivative_tyson_lower(f):
     return -5*10**-6*f**(13/3)
+
+def frequency_derivative_mojito_lower(f):
+    return -2*10**-20*(f/0.0003)**(16/3)
+
+def frequency_derivative_mojito_upper(f):
+    return 3*10**-21*(f/0.0001)**(11/3)
 
 def scaletooriginal(previous_max, boundaries, parameters=None):
     """Scales the parameters back to their original values.
@@ -309,7 +325,6 @@ def reduce_boundaries(maxpGB, boundaries, parameters=None, ratio=0.1):
         bounds_arr = np.array([boundaries[p] for p in PARAM_NAMES])
     else:
         bounds_arr = np.asarray(boundaries)
-    
     boundaries_reduced = bounds_arr.copy()
     
     for i, param in enumerate(PARAM_NAMES):
@@ -497,21 +512,18 @@ class GB_Searcher:
             
         f_0 = fmin
         f_transfer = 19.1*10**-3
-        snr = 7
-        amplitude_lower = 2*snr/(Tobs * np.sin(f_0/ f_transfer)**2/self.SA[0])**0.5
-        snr = 1000
-        amplitude_upper = 2*snr/(Tobs * np.sin(f_0/ f_transfer)**2/self.SA[0])**0.5
-        amplitude = [amplitude_lower, amplitude_upper]
-        fd_range = [frequency_derivative_tyson_lower(lower_frequency),frequency_derivative(upper_frequency,M_chirp_upper_boundary)]
+        # snr = 7
+        # amplitude_lower = 2*snr/(Tobs * np.sin(f_0/ f_transfer)**2/self.SA[0])**0.5
+        # snr = 1000
+        # amplitude_upper = 2*snr/(Tobs * np.sin(f_0/ f_transfer)**2/self.SA[0])**0.5
+        # amplitude = [amplitude_lower, amplitude_upper]
+        fd_range = [frequency_derivative_mojito_lower(lower_frequency),frequency_derivative_mojito_upper(upper_frequency)]
 
         self.boundaries = deepcopy(boundaries_dict)
         if 'Frequency' not in self.boundaries.keys():
             self.boundaries['Frequency'] = frequency_boundaries
         if 'FrequencyDerivative' not in self.boundaries.keys():
             self.boundaries['FrequencyDerivative'] = fd_range
-        if 'Amplitude' not in self.boundaries.keys():
-            self.boundaries['Amplitude'] =  [np.log10(amplitude[0]),np.log10(amplitude[1])]
-
         if self.boundaries['FrequencyDerivative'][0] > self.boundaries['FrequencyDerivative'][1]:
             c = self.boundaries['FrequencyDerivative'][0]
             self.boundaries['FrequencyDerivative'][0] = self.boundaries['FrequencyDerivative'][1]
@@ -525,13 +537,7 @@ class GB_Searcher:
         previous_max = np.random.rand(N_PARAMS)
         self.pGBs = scaletooriginal(previous_max, self.boundaries_arr)
 
-        # warm up the get_tdi function
-        start = time.time()
-        get_tdi_jit(jnp.array([self.pGBs]))
-        print('time', time.time()-start)
-        start = time.time()
-        self.get_tdi(jnp.array([self.pGBs]))
-        print('time', time.time()-start)
+
         start = time.time()
         self.from01toSNR(np.array([0.5]*N_PARAMS_NO_AMP))
         print('time from01toSNR', time.time()-start)
@@ -1412,48 +1418,6 @@ class Segment_GB_Searcher:
         print('start search', np.round(lower_frequency*10**3, 5), 'mHz to', np.round(upper_frequency*10**3, 5), 'mHz')
         start_search = time.time()
         initial_guess = []
-            
-        # search = GB_Searcher(tdi_fs_search,self.Tobs, lower_frequency, upper_frequency, self.waveform_args, dt=self.dt, channel_combination=self.channel_combination)
-
-        # number_frequency_bins = len(search.freq)
-        # # set N to the next power of 2 greater than number_frequency_bins, but maximum 2**11 and minimum 2**6
-        # self.N = np.min([int(2**(np.ceil(np.log2(number_frequency_bins)))), 2**11])
-        # self.N = np.max([self.N, 2**6])
-        # self.fgb = JaxGB(orbits=self.waveform_args['orbits'],  t_obs=self.waveform_args['Tobs'], t0=self.waveform_args['t0'], n=self.N)
-        # # Create JIT-compiled version
-        # @jax.jit
-        # def get_tdi_jit(params, tdi_generation=self.waveform_args['tdi_generation'], tdi_combination=self.channel_combination):
-        #     return self.fgb.get_tdi(params, tdi_generation=tdi_generation, tdi_combination=tdi_combination)
-        # self.get_tdi = get_tdi_jit
-
-        # def from_01toSNR_jit(params):
-        #     return search.from01toSNR(params)
-        # @jax.jit
-        # def from_01toSNR_jax_jit(params):
-        #     return search.from01toSNR_jax(params)
-        # self.get_kmin = self.fgb.get_kmin
-        # # time the get_tdi function
-        # start = time.time()
-        # get_tdi_jit(jnp.array([search.pGBs]))
-        # print('time get_tdi_jit', time.time()-start)
-        # start = time.time()
-        # get_tdi_jit(jnp.array([search.pGBs]))
-        # print('time get_tdi_jit 2', time.time()-start)
-        # start = time.time()
-        # search.get_tdi(jnp.array([search.pGBs]))
-        # print('time search.get_tdi', time.time()-start)
-        # start = time.time()
-        # search.from01toSNR(np.array([0.5]*N_PARAMS_NO_AMP))
-        # print('time search.from01toSNR', time.time()-start)
-        # start = time.time()
-        # search.from01toSNR_jax(jnp.array([0.5]*N_PARAMS_NO_AMP))
-        # print('time search.from01toSNR_jax', time.time()-start)
-        # start = time.time()
-        # from_01toSNR_jit(jnp.array([0.5]*N_PARAMS_NO_AMP))
-        # print('time from_01toSNR_jit', time.time()-start)
-        # start = time.time()
-        # from_01toSNR_jax_jit(jnp.array([0.5]*N_PARAMS_NO_AMP))
-        # print('time from_01toSNR_jax_jit', time.time()-start)
 
         # use found sources from previous search to get initial guess
         if len(self.found_sources_previous) > 0:

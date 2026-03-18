@@ -41,14 +41,16 @@ def main(argv=None):
     runner.load_data()
     runner.prepare_frequency_windows()
     savepath = runner.savepath
-    found_sources = np.load(savepath+'/found_signals_noisy_Mojito_SNR_threshold_9_seed1.npy')
+    with h5py.File(runner.savepath+f'/found_signals_Mojito_SNR_threshold_{int(config['snr_threshold'])}_seed{config['seed']}.h5', 'r') as f:
+        found_sources = f['recovered_sources'][:]
     found_sources_df = pl.DataFrame(found_sources, schema=PARAM_NAMES)
     frequency_range = runner.frequencies_search[0]
     initial_parameters = found_sources_df.filter((pl.col('Frequency') > frequency_range[0]) & (pl.col('Frequency') < frequency_range[1])).to_numpy()
     gb_pe = GB_pe(runner.tdi_fs, initial_parameters, runner.Tobs, frequency_range[0], frequency_range[1], runner.waveform_args, config['dt'], channel_combination=config['channel_combination'])
     chains, ensemble = gb_pe.mcmc_GB(nsteps=100, burn=0, ntemps=4, nwalkers=32)
-    np.save(savepath+'/chains_t0_Mojito_SNR_threshold_9_seed1.npy', chains)
-    # np.save(savepath+'/ensemble_t0_Mojito_SNR_threshold_9_seed1.npy', ensemble)
+    chains_fn = savepath + f'/chains/chains_t0_Mojito_SNR_threshold_{int(config["snr_threshold"])}_seed{config["seed"]}.h5'
+    with h5py.File(chains_fn, 'w') as f:
+        f.create_dataset('chains', data=chains)
 
 
     

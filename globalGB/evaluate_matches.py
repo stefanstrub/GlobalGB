@@ -22,7 +22,6 @@ sys.path.append('/cluster/home/sstrub/Repositories/LDC/lib/lib64/python3.8/site-
 
 from astropy import units as u
 import astropy.coordinates as coord
-import pickle
 
 import jax
 from jaxgb.params import GBObject, PARAM_NAMES
@@ -75,16 +74,20 @@ save_name_injected = 'Mojito_WDWD'
 max_number_of_injected_signals_per_window = 100
 
 t_init = 97729089.327664 
-fn = SAVEPATH+'/pGB_injected_no_SNR_' +save_name_injected+'.npy'
-pGB_injected = np.load(fn, allow_pickle=True)
+fn = SAVEPATH+'/pGB_injected_no_SNR_' +save_name_injected+'.h5'
+with h5py.File(fn, 'r') as f:
+    pGB_injected = f['injected_sources'][:]
 gbo = GBObject.from_jaxgb_params(jnp.array(pGB_injected), t_init=t_init)
 pGB_injected = np.array(gbo.to_jaxgb_array(t0=t0))
 pGB_injected_df = pl.DataFrame(pGB_injected, schema=PARAM_NAMES)
 pGB_injected_df = pGB_injected_df.sort('Frequency')
 
-found_sources = np.load(SAVEPATH+'/found_sources_t0' +save_name+'.npy', allow_pickle=True)
-injected_sources = np.load(SAVEPATH+'/injected_sources_t0' +save_name+'.npy', allow_pickle=True)
-matches = np.array(np.load(SAVEPATH+'/matches_t0' +save_name+'.npy', allow_pickle=True))
+with h5py.File(SAVEPATH+'/found_sources_t0' +save_name+'.h5', 'r') as f:
+    found_sources = f['found_sources'][:]
+with h5py.File(SAVEPATH+'/injected_sources_t0' +save_name+'.h5', 'r') as f:
+    injected_sources = f['injected_sources'][:]
+with h5py.File(SAVEPATH+'/matches_t0' +save_name+'.h5', 'r') as f:
+    matches = np.array(f['matches'][:])
 
 mask_match = matches < 0.3
 found_sources_matched = found_sources[mask_match]

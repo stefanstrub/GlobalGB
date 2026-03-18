@@ -10,6 +10,7 @@ from copy import deepcopy
 from ldc.common.series import TimeSeries, FrequencySeries, TDI
 from ldc.common.tools import window
 from MojitoProcessor import load_mojito_l1, process_pipeline
+from globalGB.search_utils_GB import GBConfig
 
 
 class LISADataLoader:
@@ -17,22 +18,23 @@ class LISADataLoader:
     
     SUPPORTED_DATASETS = ['Radler', 'Sangria', 'Spritz', 'Mojito', 'Windowed']
     
-    def __init__(self, dataset: str, base_path: str = None):
+    def __init__(self, config: GBConfig):
         """
         Initialize the data loader.
         
         Args:
             dataset: One of 'Radler', 'Sangria', 'Spritz', 'Mojito', 'Windowed'
-            base_path: Base path to LDC data (defaults to grandparent/LDC)
+            config: GBConfig object
         """
-        if dataset not in self.SUPPORTED_DATASETS:
+        if config.data_set not in self.SUPPORTED_DATASETS:
             raise ValueError(f"Dataset must be one of {self.SUPPORTED_DATASETS}")
-        
-        self.dataset = dataset
-        self.base_path = base_path or self._get_default_base_path()
-        self.data_path = self._get_data_path()
-        self.save_path = self._get_save_path()
-        
+
+        self.config = config
+        self.dataset = config.data_set
+        self.data_path = config.data_path
+        self.catalog_path = config.catalog_path
+        self.save_path = config.save_path
+
         # Data attributes (populated after loading)
         self.td = None           # TDI time domain data
         self.tdi_fs = None       # TDI frequency series
@@ -47,44 +49,17 @@ class LISADataLoader:
         self.freq = None         # Frequency array
         self.CENTRAL_FREQ = 281600000000000.0
         
-    def _get_default_base_path(self):
-        """Get default base path relative to current working directory"""
-        path = os.getcwd()
-        parent = os.path.dirname(path)
-        return os.path.dirname(parent) + "/LDC"
     
-    def _get_data_path(self):
-        """Get data path for the selected dataset"""
-        paths = {
-            'Radler': f"{self.base_path}/Radler/data",
-            'Sangria': f"{self.base_path}/Sangria/data",
-            'Spritz': f"{self.base_path}/Spritz/data",
-            'Mojito': f"{self.base_path}/Mojito/data/",
-            'Windowed': f"{self.base_path}/Windowed/data",
-        }
-        return paths[self.dataset]
-    
-    def _get_save_path(self):
-        """Get save path for the selected dataset"""
-        paths = {
-            'Radler': f"{self.base_path}/pictures/LDC1-4/",
-            'Sangria': f"{self.base_path}/GlobalFit/Sangria_EMRI/",
-            'Spritz': f"{self.base_path}/Spritz/evaluation",
-            'Mojito': f"{self.base_path}/Mojito/evaluation",
-            'Windowed': f"{self.base_path}/Windowed/",
-        }
-        return paths[self.dataset]
-    
-    def load(self, filename: str = None, dt: float = None, 
-             Tobs: float = None, weeks: int = None, channel_combination='XYZ', **kwargs):
+    def load(self, data_path: str, dt: float = None, 
+             Tobs_target: float = None, weeks: int = None, channel_combination=None, **kwargs):
         """
         Load data from file.
         
         Args:
-            filename: Custom filename (optional, auto-detected if None)
+            data_path: Custom data_path
             dt: Time step (required for some datasets)
-            Tobs: Observation time in seconds
-            weeks: Observation time in weeks (alternative to Tobs)
+            Tobs_target: Observation time in seconds
+            weeks: Observation time in weeks (alternative to Tobs_target)
             **kwargs: Dataset-specific options:
                 - subtract_mbhb: bool - Subtract MBHB signals (Sangria)
                 - subtract_gb: bool - Subtract GB signals (Sangria)
@@ -94,21 +69,30 @@ class LISADataLoader:
             self for method chaining
         """
         if weeks is not None:
-            Tobs = float(weeks * 7 * 24 * 3600)
-        
+            Tobs_target = float(weeks * 7 * 24 * 3600)
+
+        if channel_combination is None:
+            channel_combination = self.config.channel_combination
+            
         loader_method = getattr(self, f'_load_{self.dataset.lower()}')
-        loader_method(filename, dt, Tobs, channel_combination=channel_combination, **kwargs)
-        
+        loader_method(data_path, dt, channel_combination=channel_combination, **kwargs)
+
+        if Tobs_target is not None:
+            self.tdi_ts = {ch: TimeSeries(self.tdi_ts[ch].data[:int(Tobs_target/self.dt)], dt=self.dt, t0=self.data.t0) for ch in self.tdi_ts.channels}
+            self.tdi_fs = {ch: np.fft.rfft(self.tdi_ts[ch].data)*self.dt / self.CENTRAL_FREQ for ch in self.tdi_ts.channels}
+            self.tdi_fs['freq'] = self.freq
+            self.Tobs = Tobs_target
+        self.df = self.freq[1] - self.freq[0]
         
         return self
         
     
-    def _load_radler(self, filename, dt, Tobs, **kwargs):
+    def _load_radler(self, data_path, dt, Tobs, **kwargs):
         """Load Radler dataset"""
-        if filename is None:
-            filename = self.data_path + "/LDC1-1_MBHB_v2_TD.hdf5"
+        if data_path is None:
+            data_path = self.data_path + "/LDC1-1_MBHB_v2_TD.hdf5"
         
-        self.fid = h5py.File(filename)
+        self.fid = h5py.File(data_path)
         td = np.array(self.fid["H5LISA/PreProcess/TDIdata"])
         td = np.rec.fromarrays(list(td.T), names=["t", "X", "Y", "Z"])
         
@@ -131,14 +115,14 @@ class LISADataLoader:
             self.td_mbhb = TDI(dict([(k, TimeSeries(td_mbhb[k], dt=self.dt, t0=0)) 
                                     for k in ["X", "Y", "Z"]]))
     
-    def _load_sangria(self, filename, dt, Tobs, subtract_mbhb=False, 
+    def _load_sangria(self, data_path, dt, Tobs, subtract_mbhb=False, 
                       subtract_gb=False, subtract_vgb=False, subtract_dgb=False,
                       subtract_igb=False, **kwargs):
         """Load Sangria dataset"""
-        if filename is None:
-            filename = self.data_path + "/LDC2_sangria_training_v2.h5"
+        if data_path is None:
+            data_path = self.data_path + "/LDC2_sangria_training_v2.h5"
         
-        self.fid = h5py.File(filename)
+        self.fid = h5py.File(data_path)
         td = self.fid["obs/tdi"][()]
         td = np.rec.fromarrays(list(td.T), names=["t", "X", "Y", "Z"])
         td = td['t']
@@ -207,18 +191,23 @@ class LISADataLoader:
         
         self.Tobs = Tobs or float(td['t'][-1]) + self.dt
     
-    def _load_mojito(self, filename, dt, Tobs, s_index=0, channel_combination='XYZ', **kwargs):
+    def _load_mojito(self, data_path=None, dt=None, channel_combination=None, **kwargs):
         """Load Mojito dataset"""
         if dt is None:
-            dt = 2.5  # Default for Mojito
-        self.dt = dt
+            self.dt = self.config.dt
+        else:
+            self.dt = dt
+        if data_path is None:
+            data_path = self.config.data_path
+        else:
+            data_path = data_path
+        if channel_combination is None:
+            self.channel_combination = self.config.channel_combination
+        else:
+            self.channel_combination = channel_combination
         
-        if filename is None:
-            filename = self.data_path + f"COMBINED/L1/mojito_light_731d_2.5s_L1_0_0_20251218T000909441368Z.h5"
-        
-
-        self.data = load_mojito_l1(filename)
-        self.Tobs_original = float(self.data.duration)
+        data = load_mojito_l1(data_path)
+        self.Tobs_original = float(data.duration)
         # ── Pipeline parameters ───────────────────────────────────────────────────────
 
         # Downsampling parameters
@@ -237,6 +226,10 @@ class LISADataLoader:
             "order": 2,  # Butterworth filter order
         }
 
+        Nyquist_data = 1/(2*data.dt)
+        if filter_kwargs['lowpass_cutoff'] == Nyquist_data:
+            filter_kwargs['lowpass_cutoff'] = None
+
         # Trim parameters
         trim_kwargs = {
             "fraction": 0.02,  # Fraction of post-downsample duration trimmed from each end.
@@ -251,15 +244,17 @@ class LISADataLoader:
             "window": "tukey",  # Window type: 'tukey', 'hann', 'hamming', 'blackman'
             "alpha": 0.0125,  # Taper fraction for Tukey window
         }
-        # ─────────────────────────────────────────────────────────────────────────────
+        # ─────────────────────────────────────
+
+
 
         processed_segments =process_pipeline(
-            self.data,
+            data,
             downsample_kwargs=downsample_kwargs,
             filter_kwargs=filter_kwargs,
             trim_kwargs=trim_kwargs,
             window_kwargs=window_kwargs,
-            channels=channel_combination,
+            channels=self.channel_combination,
         )
 
         td = processed_segments["segment0"]
@@ -268,18 +263,19 @@ class LISADataLoader:
         
 
         # Convert from frequency to fractional frequency
-        CENTRAL_FREQ = self.data.metadata["laser_frequency"]
+        self.CENTRAL_FREQ = data.metadata["laser_frequency"]
 
         self.freq = np.fft.rfftfreq(td.N, d=td.dt)
         self.tdi_ts = {ch: td.data[ch] for ch in td.channels}
-        # self.tdi_ts = {ch: TimeSeries(td.data[ch], dt=td.dt, t0=self.data.t0) for ch in td.channels}
-        self.tdi_fs = {ch: np.fft.rfft(td.data[ch])*td.dt / CENTRAL_FREQ for ch in td.channels}
+        # self.tdi_ts = {ch: TimeSeries(td.data[ch], dt=td.dt, t0=data.t0) for ch in td.channels}
+        self.tdi_fs = {ch: np.fft.rfft(td.data[ch])*td.dt / self.CENTRAL_FREQ for ch in td.channels}
         self.tdi_fs['freq'] = self.freq
 
-        self.Tobs = float(len(td.data[channel_combination[-1]])) * td.dt # Tobs after trimming
+        self.Tobs = float(len(td.data[self.channel_combination[-1]])) * td.dt # Tobs after trimming
         trim_time = (self.Tobs_original - self.Tobs)/2 # Time to trim from the start
-        self.t0 = self.data.t0 + trim_time # Start time after trimming
-        # self.t0_processed = td.t0
+        self.t0 = data.t0 + trim_time # Start time after trimming
+
+
         
     
     def _load_mojito_catalog(self):
@@ -295,7 +291,7 @@ class LISADataLoader:
     
     def _load_mojito_mbhb_catalog(self):
         """Load Mojito MBHB catalog"""
-        catalog_path = self.base_path + '/Mojito/catalogues/mbhb_cat_mojito_lite_processed_MT.hdf5'
+        catalog_path = self.catalog_path + "/mbhb_cat_mojito_lite_processed_MT.hdf5"
         
         if not os.path.exists(catalog_path):
             print(f"Warning: MBHB catalog file not found at {catalog_path}")
@@ -332,8 +328,7 @@ class LISADataLoader:
     
     def _load_mojito_wdwd_catalog(self):
         """Load Mojito WDWD (galactic binary) catalog"""
-        catalog_path = self.base_path + '/Mojito/catalogues/wdwd_cat_mojito_lite_processed.hdf5'
-        
+        catalog_path = self.catalog_path + "/wdwd_cat_mojito_lite_processed.hdf5"
         if not os.path.exists(catalog_path):
             print(f"Warning: WDWD catalog file not found at {catalog_path}")
             self.catalog_wdwd = None
@@ -377,12 +372,12 @@ class LISADataLoader:
         
         fid_wdwd.close()
     
-    def _load_spritz(self, filename, dt, Tobs, **kwargs):
+    def _load_spritz(self, data_path, dt, Tobs, **kwargs):
         """Load Spritz dataset"""
-        if filename is None:
-            filename = self.data_path + "/LDC2_spritz_vgb_training_v2.h5"
+        if data_path is None:
+            data_path = self.data_path + "/LDC2_spritz_vgb_training_v2.h5"
         
-        self.fid = h5py.File(filename)
+        self.fid = h5py.File(data_path)
         
         # Load catalog
         names = self.fid["sky/cat"].dtype.names
@@ -431,12 +426,12 @@ class LISADataLoader:
         
         self.Tobs = Tobs or float(td['t'][-1]) + self.dt
     
-    def _load_windowed(self, filename, dt, Tobs, **kwargs):
+    def _load_windowed(self, data_path, dt, Tobs, **kwargs):
         """Load Windowed dataset (custom text format)"""
-        if filename is None:
-            filename = self.data_path + '/data.txt'
+        if data_path is None:
+            data_path = self.data_path + '/data.txt'
         
-        td = np.loadtxt(filename)
+        td = np.loadtxt(data_path)
         td = list(td.T)
         self.dt = dt or 15
         Tobs = self.dt * len(td[0])
