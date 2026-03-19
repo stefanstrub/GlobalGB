@@ -116,13 +116,10 @@ def main(argv: list[str] | None = None) -> None:
     base_found_dir = config["save_path"]
 
     # Paths are currently hard-coded for Mojito, SNR threshold 9 and seed 1.
-    if which_run not in ["global"]:
-        which_run = which_run + "_"
-    if which_run in ["global"]:
-        which_run = ""
-    run_name = f"/found_signals_{config['data_set']}_SNR_threshold_{int(config['snr_threshold'])}_{which_run}seed{config['seed']}"
+    directory_name = f"/found_signals_{config['data_set']}_SNR_threshold_{int(config['snr_threshold'])}_{which_run}_seed{config['seed']}"
+    file_name = f"/found_signals_{config['data_set']}_SNR_threshold_{int(config['snr_threshold'])}_seed{config['seed']}"
 
-    input_dir = base_found_dir + run_name
+    input_dir = base_found_dir + directory_name
     if not os.path.isdir(input_dir):
         raise FileNotFoundError(f"Input directory not found: {input_dir}")
 
@@ -142,12 +139,12 @@ def main(argv: list[str] | None = None) -> None:
     print("total number of function evaluations:", number_of_evaluations)
 
     output_base = base_found_dir
-    if which_run in ["odd_", "even_"]:
+    if which_run in ["odd", "even"]:
         output_base = base_found_dir + f"/found_signals_{config['data_set']}_SNR_threshold_{int(config['snr_threshold'])}_global_seed{config['seed']}"
     os.makedirs(output_base, exist_ok=True)
 
     # save as hdf5 file
-    output_path = output_base + run_name + ".h5"
+    output_path = output_base + file_name + ".h5"
     with h5py.File(output_path, 'w') as f:
         f.create_dataset('recovered_sources', data=flat_sources_sorted)
 
