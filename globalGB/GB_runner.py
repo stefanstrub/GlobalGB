@@ -29,11 +29,11 @@ import jax.numpy as jnp
 import lisaorbits
 import numpy as np
 import pandas as pd
-
+import gc
 from jaxgb.jaxgb import JaxGB
 
 from globalGB.search_utils_GB import (
-    Segment_GB_Searcher,
+    Segment_GB_Searcher, GB_Searcher,
     create_frequency_windows,
     tdi_subtraction,
     PARAM_NAMES,
@@ -269,6 +269,15 @@ class GBSearchRunner:
             t0=self.waveform_args["t0"],
             n=1024,
         )
+        # search = GB_Searcher(
+        #     self.tdi_fs,
+        #     self.Tobs,
+        #     self.frequencies_search[0][0],
+        #     self.frequencies_search[0][1],
+        #     waveform_args=self.waveform_args,
+        #     dt=self.cfg.dt,
+        #     channel_combination=self.cfg.channel_combination,
+        # )
 
         for win in self.frequencies_search_full:
             found_sources_outside_flat_df = found_sources_outside_flat_df[
@@ -279,6 +288,11 @@ class GBSearchRunner:
         found_sources_outside_flat_df = found_sources_outside_flat_df.sort_values("Frequency")
         found_sources_outside_flat = jnp.asarray(found_sources_outside_flat_df.values)
 
+        # found_sources_outside_flat_neighbors = found_sources_outside_flat_df[
+        #     (found_sources_outside_flat_df["Frequency"] > self.frequencies_search[0][0]-search.padding*4)
+        #     & (found_sources_outside_flat_df["Frequency"] < self.frequencies_search[0][1]+search.padding*4)
+        # ]
+        # found_sources_outside_flat_neighbors = jnp.asarray(found_sources_outside_flat_neighbors.values)
         self.tdi_fs = tdi_subtraction(
             self.tdi_fs,
             found_sources_outside_flat,
@@ -286,7 +300,21 @@ class GBSearchRunner:
             self.waveform_args["tdi_generation"],
             self.cfg.channel_combination,
         )
+        # import matplotlib.pyplot as plt
+        # plt.figure()
+        # plt.plot(self.tdi_fs['freq'],self.tdi_fs['A'],'k')
+        # plt.plot(tdi_fs_subtracted['freq'],tdi_fs_subtracted['A'],'r')
+        # for i in range(len(found_sources_outside_flat_neighbors)):
+        #     if i != 1:
+        #         continue
+        #     source_subtracted = search.fgb.get_tdi(jnp.asarray(found_sources_outside_flat_neighbors[i]), tdi_generation=self.waveform_args['tdi_generation'], tdi_combination=self.cfg.channel_combination)
+        #     kmin = search.fgb.get_kmin(found_sources_outside_flat_neighbors[i][0])
+        #     ffreqs = search.fgb.get_frequency_grid(jnp.array([kmin])).squeeze()
+        #     plt.plot(ffreqs,(source_subtracted[0]))
+        # plt.xlim(search.lower_frequency-search.padding,search.upper_frequency+search.padding*4)
+        # plt.show(block=True)
 
+        # self.tdi_fs = tdi_fs_subtracted
         print("subtraction time", time.time() - start)
 
     def remove_even_windows_if_unchanged(self, frequency_windows_to_update=None) -> None:
@@ -443,6 +471,8 @@ class GBSearchRunner:
         search_results = []
         for f_low, f_high in self.frequencies_search:
             search_results.append(GB_segment_searcher.search(f_low, f_high))
+            gc.collect()  # Force garbage collection
+            jax.clear_caches()  # Clear JAX compilation cache (if memory-constrained)
 
         search_time = time.time() - start
         print(

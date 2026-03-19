@@ -34,6 +34,7 @@ from eryn.prior import ProbDistContainer, uniform_dist
 from eryn.state import State
 from eryn.moves import GaussianMove, StretchMove, CombineMove
 import corner
+import gc
 
 # from ldc.lisa.noise import get_noise_model
 
@@ -159,10 +160,11 @@ def frequency_derivative_tyson_lower(f):
     return -5*10**-6*f**(13/3)
 
 def frequency_derivative_mojito_lower(f):
-    return -2*10**-20*(f/0.0003)**(16/3)
+    return -2*10**-20*(f/0.0004)**(16/3)
 
 def frequency_derivative_mojito_upper(f):
     return 3*10**-21*(f/0.0001)**(11/3)
+
 
 def scaletooriginal(previous_max, boundaries, parameters=None):
     """Scales the parameters back to their original values.
@@ -353,7 +355,8 @@ def max_signal_bandwidth(frequency, Tobs, chandrasekhar_limit=1.4):
     """
     M_chirp_upper_boundary = (chandrasekhar_limit**2)**(3/5)/(2*chandrasekhar_limit)**(1/5)
     f_smear = frequency *2* 10**-4
-    f_deviation = frequency_derivative(frequency, M_chirp_upper_boundary)*Tobs
+    max_frequency_derivative = max(np.abs(frequency_derivative_mojito_lower(frequency)), np.abs(frequency_derivative_mojito_upper(frequency)))
+    f_deviation = max_frequency_derivative*Tobs
     # window_length = np.max([f_smear, f_deviation])
     window_length = f_smear + f_deviation
     window_length += 4/31536000*2
@@ -441,7 +444,6 @@ class GB_Searcher:
         self.intrinsic_parameters = ['Declination', 'RightAscension', 'Frequency', 'FrequencyDerivative']
         self.N_samples = int(Tobs/dt)
         self.channel_combination = channel_combination
-        self.tdi_fs = tdi_fs
         self.freq = tdi_fs['freq']
         self.Tobs = Tobs
         self.dt = dt
@@ -467,13 +469,13 @@ class GB_Searcher:
         self.indexes = np.logical_and(self.freq > frequencyrange[0], self.freq < frequencyrange[1]) 
 
         if self.channel_combination == 'XYZ':
-            self.dataA = (self.tdi_fs['Z'] - self.tdi_fs['X'])/np.sqrt(2.0)[self.indexes]
-            self.dataE = (self.tdi_fs['Z'] - 2.0*self.tdi_fs['Y'] + self.tdi_fs['X'])/np.sqrt(6.0)[self.indexes]
-            self.dataT = (self.tdi_fs['Z'] + self.tdi_fs['Y'] + self.tdi_fs['X'])/np.sqrt(3.0)[self.indexes]
+            self.dataA = (tdi_fs['Z'] - tdi_fs['X'])/np.sqrt(2.0)[self.indexes]
+            self.dataE = (tdi_fs['Z'] - 2.0*tdi_fs['Y'] + tdi_fs['X'])/np.sqrt(6.0)[self.indexes]
+            self.dataT = (tdi_fs['Z'] + tdi_fs['Y'] + tdi_fs['X'])/np.sqrt(3.0)[self.indexes]
         else:
-            self.dataA = self.tdi_fs['A'][self.indexes]
-            self.dataE = self.tdi_fs['E'][self.indexes]
-            self.dataT = self.tdi_fs['T'][self.indexes]
+            self.dataA = tdi_fs['A'][self.indexes]
+            self.dataE = tdi_fs['E'][self.indexes]
+            self.dataT = tdi_fs['T'][self.indexes]
 
         self.freq = self.freq[self.indexes]
         fmin, fmax = self.freq[0], self.freq[-1]
@@ -538,12 +540,12 @@ class GB_Searcher:
         self.pGBs = scaletooriginal(previous_max, self.boundaries_arr)
 
 
-        start = time.time()
+        # start = time.time()
         self.from01toSNR(np.array([0.5]*N_PARAMS_NO_AMP))
-        print('time from01toSNR', time.time()-start)
-        start = time.time()
-        self.from01toSNR(np.array([0.5]*N_PARAMS_NO_AMP))
-        print('time from01toSNR 2', time.time()-start)
+        # print('time from01toSNR', time.time()-start)
+        # start = time.time()
+        # self.from01toSNR(np.array([0.5]*N_PARAMS_NO_AMP))
+        # print('time from01toSNR 2', time.time()-start)
 
 
     def update_noise(self, pGB=None):
@@ -1414,7 +1416,7 @@ class Segment_GB_Searcher:
 
     def search(self, lower_frequency, upper_frequency):
         found_sources = []
-        tdi_fs_search = deepcopy(self.tdi_fs)
+        tdi_fs_search = self.tdi_fs
         print('start search', np.round(lower_frequency*10**3, 5), 'mHz to', np.round(upper_frequency*10**3, 5), 'mHz')
         start_search = time.time()
         initial_guess = []
@@ -1462,6 +1464,9 @@ class Segment_GB_Searcher:
                 search_repetitions = 2
             else:
                 search_repetitions = 2
+            # # if the frequency is above 5 mHz, at least three repetitions are set
+            # if lower_frequency > 5*10**-3:
+            #     search_repetitions = np.max([3, search_repetitions])
             for i in range(search_repetitions):
                 if ind <= len(initial_guess) and i == 0:
                     maxpGBsearch_new, number_of_evaluations =  search.differential_evolution_search(search.boundaries['Frequency'], initial_guess = [initial_guess[ind-1]])
@@ -1500,6 +1505,7 @@ class Segment_GB_Searcher:
                     maxpGBsearch[j] = search.optimizeA([[maxpGBsearch[j]]])[0]
                     print('Optimized with parameters:', maxpGBsearch[j])
                 print('loglikelihood optimized amplitude',search.loglikelihood([maxpGBsearch[j]]))
+            print('optimized Amplitude', maxpGBsearch)
             print('in range', maxpGBsearch[0][PARAM_INDICES['Frequency']] > lower_frequency and maxpGBsearch[0][PARAM_INDICES['Frequency']] < upper_frequency)
             # new_SNR = search.SNR(maxpGBsearch[0])
 
@@ -1575,10 +1581,13 @@ class Segment_GB_Searcher:
                     else:
                         for i in range(10):
                             print('optimization failed: ', 'new loglikelihood', search_out_subtracted.loglikelihood(found_sources_inside_opt), 'old loglikelihood', search_out_subtracted.loglikelihood(found_sources_inside))
+                del search_out_subtracted
 
             found_sources = found_sources_inside + found_sources_outside
             #subtract the found sources from the original data set tdi_fs
             tdi_fs_search = tdi_subtraction(self.tdi_fs, found_sources, search.fgb, self.waveform_args['tdi_generation'], self.channel_combination)
+            del search
+            gc.collect()
 
         print('search time', time.time()-start_search, 'frequency', lower_frequency, upper_frequency)
         print('found_sources_inside',found_sources_inside)
