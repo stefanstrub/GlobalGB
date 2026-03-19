@@ -305,20 +305,18 @@ class GBSearchRunner:
         """
 
         if frequency_windows_to_update is None:
-            update_self = False
             frequency_windows_to_update = self.frequencies_search
-        else:
-            update_self = True
+
 
         self.frequencies_search_reduced: List[Tuple[float, float]] = []
         self.frequencies_search_skipped: List[Tuple[float, float]] = []
 
-        save_directory = f"/found_signals_{self.cfg.data_set}_SNR_threshold_{int(self.cfg.snr_threshold)}_seed{self.cfg.seed}"
+        save_directory = f"/found_signals_{self.cfg.data_set}_SNR_threshold_{int(self.cfg.snr_threshold)}_global_seed{self.cfg.seed}"
         save_name_previous = (
             f"/found_signals_{self.cfg.data_set}_SNR_threshold_{int(self.cfg.snr_threshold)}_even1st_seed{self.cfg.seed}"
         )
 
-        with h5py.File(self.savepath + save_directory + save_name_previous + ".h5", "r") as fid:
+        with h5py.File(self.savepath + save_name_previous + ".h5", "r") as fid:
             found_sources_flat = fid["recovered_sources"][:]
         found_sources_previous_df = pd.DataFrame(found_sources_flat, columns=PARAM_NAMES).sort_values("Frequency")
         save_name_previous_odd = (
@@ -370,10 +368,10 @@ class GBSearchRunner:
                 (found_sources_previous_df["Frequency"] > freq[0])
                 & (found_sources_previous_df["Frequency"] < freq[1])
             ].to_numpy())
-        self.skipped_sources = np.concatenate(skipped_sources)
-
-        if update_self:
-            self.frequencies_search = self.frequencies_search_reduced
+        if len(skipped_sources) > 0:
+            self.skipped_sources = np.concatenate(skipped_sources)
+        else:
+            self.skipped_sources = np.empty((0, len(PARAM_NAMES)))
 
     def load_initial_guess(self):
         """
