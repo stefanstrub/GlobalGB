@@ -618,8 +618,52 @@ def main():
     # Print summary
     results.print_summary(n_injected=len(injected_df))
     
+    # transform found sources to the correct t0
+    t_init = 97729089.327664 
+    # shift found sources to the same initial time
+    gbo = GBObject.from_jaxgb_params(jnp.array(results.found_sources), t_init=t_init)
+    found_sources_t_init = gbo.to_jaxgb_array(t0=pipeline.loader.t0)
+    results.found_sources = np.array(found_sources_t_init)
+    gbo = GBObject.from_jaxgb_params(jnp.array(results.injected_sources), t_init=t_init)
+    injected_sources_t_init = gbo.to_jaxgb_array(t0=pipeline.loader.t0)
+    results.injected_sources = np.array(injected_sources_t_init)
     # Plot example frequency window
-    pipeline.plot_frequency_window(results, freq_start=0.004)
+
+    freq_idx = np.searchsorted(
+        np.asarray(pipeline.frequencies)[:, 0], 0.00675
+    )
+    freq_range = (
+        pipeline.frequencies[freq_idx][0],
+        pipeline.frequencies[freq_idx + 1 - 1][1]
+    )
+    
+    search = GB_Searcher(
+        pipeline.loader.tdi_fs,
+        pipeline.loader.Tobs,
+        freq_range[0],
+        freq_range[1],
+        waveform_args={
+            'tdi_generation': pipeline.config.tdi_generation,
+            'orbits': pipeline.fgb.orbits,
+            'Tobs': pipeline.loader.Tobs,
+            't0': pipeline.loader.t0
+        },
+        dt=pipeline.config.dt,
+        channel_combination=pipeline.config.channel_combination
+    )
+
+    found_sources_df = pl.DataFrame(found_sources, schema=PARAM_NAMES)
+    found_sources_df = found_sources_df.sort('Frequency')
+    mask = (pl.col('Frequency') >= freq_range[0]) & (pl.col('Frequency') <= freq_range[1])
+    found_sources_filtered = np.array(found_sources_df.filter(mask))
+    dfs = results.to_dataframes()
+    mask = (pl.col('Frequency') >= freq_range[0]) & (pl.col('Frequency') <= freq_range[1])
+    matched_found = jnp.array(dfs['matched_found'].filter(mask))
+    matched_injected = jnp.array(dfs['matched_injected'].filter(mask))
+    unmatched_found = jnp.array(dfs['unmatched_found'].filter(mask))
+    unmatched_injected = jnp.array(dfs['unmatched_injected'].filter(mask))
+
+    pipeline.plot_frequency_window(results, freq_start=0.006746, n_windows=3)
     
     return results
 

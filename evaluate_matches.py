@@ -29,9 +29,12 @@ from jaxgb.jaxgb import JaxGB
 from jaxgb.tdi import to_tdi_combination
 import jax.numpy as jnp
 
-from data_loader import LISADataLoader
-from search_utils_GB import PARAM_NAMES, PARAM_INDICES
+import json
+from globalGB.search_utils_GB import GBConfig
+from DataLoader.data_loader import LISADataLoader
 
+from globalGB.search_utils_GB import PARAM_NAMES, PARAM_INDICES, frequency_derivative_mojito_lower, frequency_derivative_mojito_upper
+from globalGB.search_utils_GB import frequency_derivative_tyson_lower, frequency_derivative_tyson_upper, frequency_derivative
 jax.config.update('jax_default_device', jax.devices('cpu')[0])
 jax.config.update("jax_enable_x64", True)
 
@@ -46,17 +49,11 @@ grandparent = os.path.dirname(parent)
 # Dataset selection: 'Radler', 'Sangria', or 'Mojito'
 data_set = 'Mojito'
 reduction = 1
-weeks = int(sys.argv[1])
-print('week', weeks)
-Tobs = float(weeks*7*24*3600)
 dt = 10.0  # Default time step
 seed = 1   # Default seed
 SNR_threshold = 9
 tdi_generation = 2.0
 injected_SNR = 5
-
-DATAPATH = grandparent+"/LDC/Mojito/data/"
-SAVEPATH = grandparent+"/LDC/Mojito/evaluation/"
 
 
 save_name = f'{data_set}_SNR_threshold_{SNR_threshold}_seed{seed}'
@@ -64,17 +61,21 @@ end_string = '_scaled_error_injected_snr'+str(injected_SNR)
 
 channel_combination = 'AET'
 
-loader = LISADataLoader(dataset='Mojito', base_path=grandparent+'/LDC')
-data_fn = loader.data_path + f"GB/L1_0p4Hz/GB_731d_2.5s_L1_source0_0_20251205T020733787241Z_noisy.h5"
+with open('globalGB/GB_search_config.json', 'r') as f:
+    config = json.load(f)
+    config = GBConfig(config)
+loader = LISADataLoader(config=config)
+data_fn = config.data_path
 loader.load(data_fn, dt=dt, channel_combination=channel_combination)
-parameters_injected = loader.catalog_wdwd
+loader._load_mojito_wdwd_catalog()
+parameters_injected = pl.DataFrame(loader.catalog_wdwd, schema=PARAM_NAMES)
 
 t0 = loader.t0
 save_name_injected = 'Mojito_WDWD'
 max_number_of_injected_signals_per_window = 100
 
 t_init = 97729089.327664 
-fn = SAVEPATH+'/pGB_injected_no_SNR_' +save_name_injected+'.h5'
+fn = config.save_path+'/pGB_injected_' +save_name_injected+'.h5'
 with h5py.File(fn, 'r') as f:
     pGB_injected = f['injected_sources'][:]
 gbo = GBObject.from_jaxgb_params(jnp.array(pGB_injected), t_init=t_init)
@@ -82,19 +83,22 @@ pGB_injected = np.array(gbo.to_jaxgb_array(t0=t0))
 pGB_injected_df = pl.DataFrame(pGB_injected, schema=PARAM_NAMES)
 pGB_injected_df = pGB_injected_df.sort('Frequency')
 
-with h5py.File(SAVEPATH+'/found_sources_t0' +save_name+'.h5', 'r') as f:
-    found_sources = f['found_sources'][:]
-with h5py.File(SAVEPATH+'/injected_sources_t0' +save_name+'.h5', 'r') as f:
-    injected_sources = f['injected_sources'][:]
-with h5py.File(SAVEPATH+'/matches_t0' +save_name+'.h5', 'r') as f:
-    matches = np.array(f['matches'][:])
+with h5py.File(config.save_path+'/match_results_'+config.data_set+'_SNR_threshold_'+str(int(config.snr_threshold))+'_seed'+str(config.seed)+'_'+config.match_criteria+'.h5', 'r') as f:
+        found_sources = np.array(f['found_sources'][:])
+        injected_sources = np.array(f['injected_sources'][:])
+        match_values = np.array(f['match_values'][:])
+        found_sources_matched = np.array(f['found_sources_matched'][:])
+        injected_sources_matched = np.array(f['injected_sources_matched'][:])
+        match_values_matched = np.array(f['match_values_matched'][:])
+        found_sources_not_matched = np.array(f['found_sources_unmatched'][:])
+        injected_sources_not_matched = np.array(f['injected_sources_unmatched'][:])
+        match_values_not_matched = np.array(f['match_values_unmatched'][:])
 
-mask_match = matches < 0.3
-found_sources_matched = found_sources[mask_match]
-pGB_injected_matched = injected_sources[mask_match]
-found_sources_not_matched = found_sources[~mask_match]
-pGB_injected_not_matched = injected_sources[~mask_match]
-
+# mask_match = match_values < 0.3
+# found_sources_matched = found_sources[mask_match]
+# injected_sources_matched = injected_sources[mask_match]
+# found_sources_not_matched = found_sources[~mask_match]
+# injected_sources_not_matched = injected_sources[~mask_match]
 
 number_of_injected_signals = len(pGB_injected)
 number_of_found_signals = len(found_sources_matched) + len(found_sources_not_matched)
@@ -104,23 +108,25 @@ number_of_not_matched_signals = len(found_sources_not_matched)
 print(number_of_matched_signals ,'matched signals out of', number_of_injected_signals , 'injected signals and',number_of_found_signals, 'found signals')
 print('matched signals/found signals:', np.round(number_of_matched_signals/number_of_found_signals,2))
 
-pGB_injected_matched_df = pl.DataFrame(pGB_injected_matched, schema=PARAM_NAMES)
-pGB_injected_matched_df = pGB_injected_matched_df.sort(by= 'Frequency')
-pGB_injected_not_matched_df = pl.DataFrame(pGB_injected_not_matched, schema=PARAM_NAMES)
-pGB_injected_not_matched_df = pGB_injected_not_matched_df.sort(by= 'Frequency')
+injected_sources_matched_df = pl.DataFrame(injected_sources_matched, schema=PARAM_NAMES)
+injected_sources_matched_df = injected_sources_matched_df.sort(by= 'Frequency')
+injected_sources_not_matched_df = pl.DataFrame(injected_sources_not_matched, schema=PARAM_NAMES)
+injected_sources_not_matched_df = injected_sources_not_matched_df.sort(by= 'Frequency')
 
 found_sources_matched_df = pl.DataFrame(found_sources_matched, schema=PARAM_NAMES)
 found_sources_matched_df = found_sources_matched_df.sort(by= 'Frequency')
 found_sources_not_matched_df = pl.DataFrame(found_sources_not_matched, schema=PARAM_NAMES)
 found_sources_not_matched_df = found_sources_not_matched_df.sort(by= 'Frequency')
 
-# remove pGB_injected_matched_df signls from pGB_injected_df
-pGB_injected_not_matched_df = pl.concat([pGB_injected_matched_df, pGB_injected_df])
-pGB_injected_not_matched_df = pGB_injected_not_matched_df.unique(keep='none')
-pGB_injected_not_matched = np.array(pGB_injected_not_matched_df)
+# remove injected_sources_matched_df signls from pGB_injected_df
+injected_sources_not_matched_df = pl.concat([injected_sources_matched_df, pGB_injected_df])
+injected_sources_not_matched_df = injected_sources_not_matched_df.unique(keep='none')
+injected_sources_not_matched = np.array(injected_sources_not_matched_df)
 
 
 labels = {'RightAscension': r'$\lambda$'+' (rad)', 'Declination': r'$\beta$'+' (rad)','Frequency': r'$f / f_\mathrm{true}$','FrequencyDerivative': r'$\dot{f}$ $ ($Hz/s$)$','Inclination': r'$\iota$'+' (rad)','Amplitude': r'$ \mathcal{A}$', 'Polarization': r'$\psi$'+' (rad)', 'InitialPhase': r'$\phi_0$'+' (rad)'}
+
+
 
 
 #### plot amplitude - frequency
@@ -133,14 +139,14 @@ parameter_x = 'Frequency'
 parameter_y = 'Amplitude'
 fig = plt.figure(figsize=(10,6))
 # plt.plot(found_sources_matches[:,PARAM_INDICES[parameter_x]],found_sources_matches[:,PARAM_INDICES[parameter_y]],'.', markersize= markersize, alpha = alpha, zorder = 5, label = 'Found '+ str(len(found_sources_matches))+' signals')
-plt.plot(found_sources_matched[:,PARAM_INDICES[parameter_x]],found_sources_matched[:,PARAM_INDICES[parameter_y]],'.', markersize= markersize, alpha = alpha, zorder = 1, label = 'Recovered matched '+ str(len(pGB_injected_matched))+' signals')
+plt.plot(found_sources_matched[:,PARAM_INDICES[parameter_x]],found_sources_matched[:,PARAM_INDICES[parameter_y]],'.', markersize= markersize, alpha = alpha, zorder = 1, label = 'Recovered matched '+ str(len(injected_sources_matched))+' signals')
 plt.plot(found_sources_not_matched[:,PARAM_INDICES[parameter_x]],found_sources_not_matched[:,PARAM_INDICES[parameter_y]],'o',  markerfacecolor='None', markersize= markersize, zorder = 2, label = 'Recovered not matched '+ str(len(found_sources_not_matched))+' signals', alpha = alpha)
 # plt.plot(pGB_injectced_flat_df['Frequency']*10**3,pGB_injected_flat_df[parameter_y], '.', color= colors[0], label = 'Injected', markersize= markersize, alpha = alpha)
-# plt.plot(pGB_injected_matched[:,PARAM_INDICES['Frequency']]*10**3,pGB_injected_matched[:,PARAM_INDICES[parameter_y]], '.', label = 'Injected matched', markersize= markersize, alpha = alpha, zorder = 0)
+# plt.plot(injected_sources_matched[:,PARAM_INDICES['Frequency']]*10**3,injected_sources_matched[:,PARAM_INDICES[parameter_y]], '.', label = 'Injected matched', markersize= markersize, alpha = alpha, zorder = 0)
 # plt.plot(pGB_injected_flat_df_high_SNR['Frequency']*10**3,pGB_injected_flat_df_high_SNR[parameter_y],'.', color= colors[1], markersize= markersize, label = 'Injected SNR > 10', alpha = alpha)
 # plt.plot(found_sources_matched_list[data_set][parameter_x],found_sources_matched_list[data_set][parameter_y],'.', label = r'$\tilde\theta_{\mathrm{recovered, } \delta < 0.3}$', markersize= markersize, alpha = alpha, zorder = 5)
 # plt.plot(found_sources_not_matched_list[data_set][parameter_x],found_sources_not_matched_list[data_set][parameter_y],'o',  markerfacecolor='None', markersize= markersize, label = r'$\tilde\theta_{\mathrm{recovered, } \delta > 0.3}$', alpha = alpha)
-plt.plot(pGB_injected_not_matched[:,PARAM_INDICES['Frequency']],pGB_injected_not_matched[:,PARAM_INDICES[parameter_y]], '+', label = 'Injected not recovered', markersize= markersize, alpha = alpha, zorder = 0)
+plt.plot(injected_sources_not_matched[:,PARAM_INDICES['Frequency']],injected_sources_not_matched[:,PARAM_INDICES[parameter_y]], '+', label = 'Injected not recovered', markersize= markersize, alpha = alpha, zorder = 0)
 # plt.plot(f,np.sqrt(SA), color = 'black', label = 'Sangria', linewidth=2)
 plt.yscale('log')
 plt.xscale('log')
@@ -156,6 +162,25 @@ plt.grid(True)
 # plt.savefig(SAVEPATH+'/Evaluation/'+parameter_y+save_name+'injected_not_matched_found_matched_found_not_matched'+end_string,dpi=300,bbox_inches='tight')
 plt.show(block=True)
 
+parameters_to_plot = injected_sources_not_matched_df.sort('Frequency')
+chandrasekhar_limit = 1.4
+M_chirp_upper_boundary = (chandrasekhar_limit**2)**(3/5)/(2*chandrasekhar_limit)**(1/5)
+mask_negative_frequency_derivative = parameters_to_plot[:,PARAM_INDICES['FrequencyDerivative']] < 0
+parameters_to_plot_negative_frequency_derivative = parameters_to_plot.filter(mask_negative_frequency_derivative)
+parameters_to_plot_positive_frequency_derivative = parameters_to_plot.filter(~mask_negative_frequency_derivative)
+plt.figure()
+plt.plot(loader.tdi_fs['freq'],np.abs(frequency_derivative_mojito_lower(loader.tdi_fs['freq'])),'k')
+# plt.plot(loader.tdi_fs['freq'],np.abs(frequency_derivative_tyson_lower(loader.tdi_fs['freq'])),'k:')
+# plt.plot(loader.tdi_fs['freq'],np.abs(frequency_derivative(loader.tdi_fs['freq'], M_chirp_upper_boundary)),'r')
+plt.plot(loader.tdi_fs['freq'],np.abs(frequency_derivative_mojito_upper(loader.tdi_fs['freq'])),'r')
+plt.plot(parameters_to_plot_negative_frequency_derivative[:,PARAM_INDICES['Frequency']],np.abs(parameters_to_plot_negative_frequency_derivative[:,PARAM_INDICES['FrequencyDerivative']]), '+', label = 'Injected not recovered', markersize= markersize, alpha = alpha, zorder = 0)
+# plt.plot(parameters_to_plot_positive_frequency_derivative[:,PARAM_INDICES['Frequency']],parameters_to_plot_positive_frequency_derivative[:,PARAM_INDICES['FrequencyDerivative']], 'o', label = 'Injected not recovered', markersize= markersize, alpha = alpha, zorder = 0)
+plt.yscale('log')
+plt.xscale('log')
+plt.xlabel('$f$ (Hz)')
+plt.xlim(0.0003,0.03)
+plt.ylim(10**-26,None)
+plt.show(block=True)
 
 #### plot
 markersize = 3
@@ -168,7 +193,7 @@ fig = plt.figure()
 # plt.plot(pGB_injected_flat_df_high_SNR['Frequency']*10**3,pGB_injected_flat_df_high_SNR[parameter_y],'.', color= colors[1], markersize= markersize, label = 'Injected SNR > 10', alpha = alpha)
 plt.plot(found_sources_matched[:,PARAM_INDICES[parameter_x]],found_sources_matched[:,PARAM_INDICES[parameter_y]],'.', label = r'$\tilde\theta_{\mathrm{recovered, } \delta < 0.3}$', markersize= markersize, alpha = alpha, zorder = 5)
 plt.plot(found_sources_not_matched[:,PARAM_INDICES[parameter_x]],found_sources_not_matched[:,PARAM_INDICES[parameter_y]],'o',  markerfacecolor='None', markersize= markersize, label = r'$\tilde\theta_{\mathrm{recovered, } \delta > 0.3}$', alpha = alpha)
-plt.plot(pGB_injected_not_matched[:,PARAM_INDICES['Frequency']]*10**3,pGB_injected_not_matched[:,PARAM_INDICES[parameter_y]], '+', label = r'$\tilde\theta_{\mathrm{injected, } \delta > 0.3}$', markersize= markersize, alpha = alpha, zorder = 1)
+# plt.plot(pGB_injected_not_matched[:,PARAM_INDICES['Frequency']]*10**3,pGB_injected_not_matched[:,PARAM_INDICES[parameter_y]], '+', label = r'$\tilde\theta_{\mathrm{injected, } \delta > 0.3}$', markersize= markersize, alpha = alpha, zorder = 1)
 # plt.plot(f,SA*10**20, color = 'black', label = 'Sangria', linewidth=2)
 # plt.yscale('log')
 # plt.xscale('log')
