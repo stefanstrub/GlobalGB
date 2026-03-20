@@ -198,6 +198,12 @@ class GBSearchRunner:
         batch_size = self.cfg.batch_size
         start_index = batch_size * self.batch_index
 
+        # for the last two batches, decrease the batch size to 1
+        max_batch_index_minus_1 = int(len(frequencies_search)/batch_size)-1
+        if self.batch_index > max_batch_index_minus_1:
+            start_index = max_batch_index_minus_1*batch_size + (self.batch_index - max_batch_index_minus_1)
+            batch_size = 1
+
         print(
             "batch",
             self.batch_index,
@@ -208,7 +214,6 @@ class GBSearchRunner:
             "total number of windows",
             len(frequencies_search)
         )
-
         frequencies_search = frequencies_search[start_index : start_index + batch_size]
 
         # Ensure that the uppermost window including its buffer stays inside

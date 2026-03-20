@@ -371,8 +371,9 @@ def create_frequency_windows(search_range, Tobs, chandrasekhar_limit=1.4):
     frequencies = []
     current_frequency = search_range[0]
     while current_frequency < search_range[1]:
-        window_length = max_signal_bandwidth(current_frequency, Tobs, chandrasekhar_limit)
-        upper_limit = current_frequency+window_length*2
+        max_signal_length = max_signal_bandwidth(current_frequency, Tobs, chandrasekhar_limit)
+        window_length = np.min([max_signal_length*2, 0.001])
+        upper_limit = current_frequency+window_length
         frequencies.append([current_frequency, upper_limit])
         current_frequency = deepcopy(upper_limit)
     return frequencies
@@ -540,12 +541,12 @@ class GB_Searcher:
         self.pGBs = scaletooriginal(previous_max, self.boundaries_arr)
 
 
-        # start = time.time()
+        start = time.time()
         self.from01toSNR(np.array([0.5]*N_PARAMS_NO_AMP))
-        # print('time from01toSNR', time.time()-start)
-        # start = time.time()
-        # self.from01toSNR(np.array([0.5]*N_PARAMS_NO_AMP))
-        # print('time from01toSNR 2', time.time()-start)
+        print('time from01toSNR', time.time()-start)
+        start = time.time()
+        self.from01toSNR(np.array([0.5]*N_PARAMS_NO_AMP))
+        print('time from01toSNR 2', time.time()-start)
 
 
     def update_noise(self, pGB=None):
@@ -1464,9 +1465,9 @@ class Segment_GB_Searcher:
                 search_repetitions = 2
             else:
                 search_repetitions = 2
-            # # if the frequency is above 5 mHz, at least three repetitions are set
-            # if lower_frequency > 5*10**-3:
-            #     search_repetitions = np.max([3, search_repetitions])
+            # if the frequency is above 10 mHz, at least three repetitions are set
+            if lower_frequency > 10*10**-3:
+                search_repetitions = np.max([3, search_repetitions])
             for i in range(search_repetitions):
                 if ind <= len(initial_guess) and i == 0:
                     maxpGBsearch_new, number_of_evaluations =  search.differential_evolution_search(search.boundaries['Frequency'], initial_guess = [initial_guess[ind-1]])

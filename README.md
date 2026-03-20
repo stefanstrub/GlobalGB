@@ -187,12 +187,12 @@ correct `data_path` and `save_path`:
 ```bash
 python GB_search.py even1st 150 # will search four signals in the 150th frequency segment batch
 ```
-To run all batches in parallel using slurm. The highest batch index is determined by int(len(frequencies_even)/batch_size)
+To run all batches in parallel using slurm. The highest batch index is determined by int(len(frequencies_even)/batch_size) + 2* batch_size. For the last to batches the batch size is reduced to 1.
 ```bash
 #!/bin/bash
 #SBATCH -n 1
 #SBATCH --time=4:00:00
-#SBATCH --array=0-248
+#SBATCH --array=0-194
 #SBATCH --mem-per-cpu=8000
 python GB_search.py even1st $SLURM_ARRAY_TASK_ID # $SLURM_ARRAY_TASK_ID is the integer of the batch index
 ```
