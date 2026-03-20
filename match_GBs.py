@@ -663,7 +663,8 @@ def main():
     unmatched_found = jnp.array(dfs['unmatched_found'].filter(mask))
     unmatched_injected = jnp.array(dfs['unmatched_injected'].filter(mask))
 
-    pipeline.plot_frequency_window(results, freq_start=0.006746, n_windows=3)
+    # pipeline.plot_frequency_window(results, freq_start=0.006746, n_windows=3)
+    pipeline.plot_frequency_window(results, freq_start=0.004, n_windows=3)
     
     return results
 

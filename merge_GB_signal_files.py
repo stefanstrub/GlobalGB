@@ -118,9 +118,9 @@ def main(argv: list[str] | None = None) -> None:
     # Paths are currently hard-coded for Mojito, SNR threshold 9 and seed 1.
     directory_name = f"/found_signals_{config['data_set']}_SNR_threshold_{int(config['snr_threshold'])}_{which_run}_seed{config['seed']}"
     if which_run in ["global"]:
-        directory_name = f"/found_signals_{config['data_set']}_SNR_threshold_{int(config['snr_threshold'])}_seed{config['seed']}"
+        file_name = f"/found_signals_{config['data_set']}_SNR_threshold_{int(config['snr_threshold'])}_seed{config['seed']}"
     else:
-        directory_name = f"/found_signals_{config['data_set']}_SNR_threshold_{int(config['snr_threshold'])}_{which_run}_seed{config['seed']}"
+        file_name = f"/found_signals_{config['data_set']}_SNR_threshold_{int(config['snr_threshold'])}_{which_run}_seed{config['seed']}"
 
     input_dir = base_found_dir + directory_name
     if not os.path.isdir(input_dir):
@@ -138,8 +138,8 @@ def main(argv: list[str] | None = None) -> None:
     flat_sources_sorted = sort_by_frequency(flat_sources)
 
     print("number of recovered sources:", len(flat_sources_sorted))
-    print("total wall time:", np.round(wall_times/60, 1), "minutes")
-    print("total number of function evaluations:", number_of_evaluations)
+    print("total wall time:", np.round(wall_times/3600, 1), "hours")
+    print("total number of function evaluations:", np.round(number_of_evaluations/1000000, 1), "million")
 
     output_base = base_found_dir
     if which_run in ["odd", "even"]:
