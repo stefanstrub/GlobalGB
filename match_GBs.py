@@ -463,7 +463,7 @@ class GBMatchingPipeline:
         """Filter injected catalog to relevant frequency windows."""
         cache_fn = os.path.join(
             self.config.save_path, 
-            f'pGB_injected_no_SNR_{save_name}.h5'
+            f'pGB_injected_{save_name}.h5'
         )
         
         if os.path.exists(cache_fn):
@@ -571,7 +571,7 @@ def main():
     found_sources = pipeline.prepare_found_sources(found_sources)
     injected_df = pipeline.load_injected_catalog()
     injected_df = pl.DataFrame(injected_df, schema=PARAM_NAMES)
-    injected_df = pipeline.prepare_injected_for_matching(injected_df, config.save_name)
+    injected_df = pipeline.prepare_injected_for_matching(injected_df)
     
     # Sort found sources
     found_df = pl.DataFrame(found_sources, schema=PARAM_NAMES).sort('Frequency')

@@ -71,7 +71,7 @@ loader._load_mojito_wdwd_catalog()
 parameters_injected = pl.DataFrame(loader.catalog_wdwd, schema=PARAM_NAMES)
 
 t0 = loader.t0
-save_name_injected = 'no_SNR_Mojito_SNR_threshold_'+str(int(config.snr_threshold))+'_seed'+str(config.seed)
+save_name_injected = 'Mojito_WDWD'
 max_number_of_injected_signals_per_window = 100
 
 t_init = 97729089.327664 
@@ -166,11 +166,11 @@ parameters_to_plot_negative_frequency_derivative = parameters_to_plot.filter(mas
 parameters_to_plot_positive_frequency_derivative = parameters_to_plot.filter(~mask_negative_frequency_derivative)
 plt.figure()
 plt.plot(loader.tdi_fs['freq'],np.abs(frequency_derivative_mojito_lower(loader.tdi_fs['freq'])),'k')
-# plt.plot(loader.tdi_fs['freq'],np.abs(frequency_derivative_tyson_lower(loader.tdi_fs['freq'])),'k:')
+plt.plot(loader.tdi_fs['freq'],np.abs(frequency_derivative_tyson_lower(loader.tdi_fs['freq'])),'k:')
 # plt.plot(loader.tdi_fs['freq'],np.abs(frequency_derivative(loader.tdi_fs['freq'], M_chirp_upper_boundary)),'r')
 plt.plot(loader.tdi_fs['freq'],np.abs(frequency_derivative_mojito_upper(loader.tdi_fs['freq'])),'r')
 plt.plot(parameters_to_plot_negative_frequency_derivative[:,PARAM_INDICES['Frequency']],np.abs(parameters_to_plot_negative_frequency_derivative[:,PARAM_INDICES['FrequencyDerivative']]), '+', label = 'Injected not recovered', markersize= markersize, alpha = alpha, zorder = 0)
-# plt.plot(parameters_to_plot_positive_frequency_derivative[:,PARAM_INDICES['Frequency']],parameters_to_plot_positive_frequency_derivative[:,PARAM_INDICES['FrequencyDerivative']], 'o', label = 'Injected not recovered', markersize= markersize, alpha = alpha, zorder = 0)
+plt.plot(parameters_to_plot_positive_frequency_derivative[:,PARAM_INDICES['Frequency']],parameters_to_plot_positive_frequency_derivative[:,PARAM_INDICES['FrequencyDerivative']], 'o', label = 'Injected not recovered', markersize= markersize, alpha = alpha, zorder = 0)
 plt.yscale('log')
 plt.xscale('log')
 plt.xlabel('$f$ (Hz)')

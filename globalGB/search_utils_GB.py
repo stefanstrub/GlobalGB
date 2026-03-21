@@ -372,7 +372,7 @@ def create_frequency_windows(search_range, Tobs, chandrasekhar_limit=1.4):
     current_frequency = search_range[0]
     while current_frequency < search_range[1]:
         max_signal_length = max_signal_bandwidth(current_frequency, Tobs, chandrasekhar_limit)
-        window_length = np.min([max_signal_length*2, 0.001])
+        window_length = np.min([max_signal_length, 0.001])
         upper_limit = current_frequency+window_length
         frequencies.append([current_frequency, upper_limit])
         current_frequency = deepcopy(upper_limit)
@@ -1520,8 +1520,9 @@ class Segment_GB_Searcher:
             found_sources_inside = []
             found_sources_outside = []
             for i in range(len(found_sources)):
-                freq = found_sources[i][PARAM_INDICES['Frequency']]
-                if lower_frequency < freq < upper_frequency:
+                f0 = found_sources[i][PARAM_INDICES['Frequency']]
+                freq_at_mean_of_signal = f0 + found_sources[i][PARAM_INDICES['FrequencyDerivative']]*(self.Tobs/2)
+                if lower_frequency < freq_at_mean_of_signal < upper_frequency:
                     found_sources_inside.append(found_sources[i])
                 else:
                     found_sources_outside.append(found_sources[i])
