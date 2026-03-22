@@ -160,10 +160,19 @@ def frequency_derivative_tyson_lower(f):
     return -5*10**-6*f**(13/3)
 
 def frequency_derivative_mojito_lower(f):
-    return -2*10**-20*(f/0.0004)**(16/3)
+    return -2*10**-21*(f/0.0004)**(16/3)
 
 def frequency_derivative_mojito_upper(f):
     return 3*10**-21*(f/0.0001)**(11/3)
+
+def frequency_derivative_mojito_lower_step(f):
+    mask = f < 0.005
+    f_low = f[mask]
+    f_high = f[~mask]
+    f_dot_low = frequency_derivative_mojito_lower(f_low)/10
+    f_dot_high = frequency_derivative_mojito_lower(f_high)
+    f_dot = np.concatenate([f_dot_low, f_dot_high])
+    return f_dot
 
 
 def scaletooriginal(previous_max, boundaries, parameters=None):
@@ -1286,51 +1295,52 @@ class GB_Searcher:
         """
         fig, axes = plt.subplots(nrows=2, ncols=1, sharex=False, figsize=np.array(fig_size)*[1,1])
         freq_plot = self.freq*10**3
-        axes[0].plot(freq_plot, (self.dataA), label='Data', color='black', linewidth=2)
+        axes[0].plot(freq_plot, np.abs(self.dataA), label='Data', color='black', linewidth=2)
         axes[1].plot(freq_plot, (self.dataE), label='Data', color='black', linewidth=2)
         for i in range(len(found_matched)):
             As, Es, Ts = self.get_tdi(found_matched[i])
             As_aligned = self.align_waveform_to_data(As, found_matched[i])
             Es_aligned = self.align_waveform_to_data(Es, found_matched[i])
             if i == 0:
-                axes[0].plot(freq_plot, (As_aligned), '--', label=f'Recovered matched', color=colors[i%7])
+                axes[0].plot(freq_plot, np.abs(As_aligned), '--', label=f'Recovered matched', color=colors[i%7])
                 axes[1].plot(freq_plot, (Es_aligned), '--', label=f'Recovered matched', color=colors[i%7])
             else:
-                axes[0].plot(freq_plot, (As_aligned), '--', color=colors[i%7])
+                axes[0].plot(freq_plot, np.abs(As_aligned), '--', color=colors[i%7])
                 axes[1].plot(freq_plot, (Es_aligned), '--', color=colors[i%7])
         for i in range(len(found_not_matched)):
             As, Es, Ts = self.get_tdi(found_not_matched[i])
             As_aligned = self.align_waveform_to_data(As, found_not_matched[i])
             Es_aligned = self.align_waveform_to_data(Es, found_not_matched[i])
             if i == 0:
-                axes[0].plot(freq_plot, (As_aligned), 'x-', label=f'Recovered not matched', color='gray')
+                axes[0].plot(freq_plot, np.abs(As_aligned), 'x-', label=f'Recovered not matched', color='gray')
                 axes[1].plot(freq_plot, (Es_aligned), 'x-', label=f'Recovered not matched', color='gray')
             else:
-                axes[0].plot(freq_plot, (As_aligned), 'x-', color='gray')
+                axes[0].plot(freq_plot, np.abs(As_aligned), 'x-', color='gray')
                 axes[1].plot(freq_plot, (Es_aligned), 'x-', color='gray')
         for i in range(len(injected_matched)):
             As, Es, Ts = self.get_tdi(injected_matched[i])
             As_aligned = self.align_waveform_to_data(As, injected_matched[i])
             Es_aligned = self.align_waveform_to_data(Es, injected_matched[i])
             if i == 0:
-                axes[0].plot(freq_plot, (As_aligned), label=f'Injected matched', color=colors[i%7], linewidth=5, alpha=0.5)
+                axes[0].plot(freq_plot, np.abs(As_aligned), label=f'Injected matched', color=colors[i%7], linewidth=5, alpha=0.5)
                 axes[1].plot(freq_plot, (Es_aligned), label=f'Injected matched', color=colors[i%7], linewidth=5, alpha=0.5)
             else:
-                axes[0].plot(freq_plot, (As_aligned), color=colors[i%7], linewidth=5, alpha=0.5)
+                axes[0].plot(freq_plot, np.abs(As_aligned), color=colors[i%7], linewidth=5, alpha=0.5)
                 axes[1].plot(freq_plot, (Es_aligned), color=colors[i%7], linewidth=5, alpha=0.5)
         for i in range(len(injected_not_matched)):
             As, Es, Ts = self.get_tdi(injected_not_matched[i])
             As_aligned = self.align_waveform_to_data(As, injected_not_matched[i])
             Es_aligned = self.align_waveform_to_data(Es, injected_not_matched[i])
             if i == 0:
-                axes[0].plot(freq_plot, (As_aligned), label=f'Injected not recovered', color='gray', linewidth=5, alpha=0.5, zorder=0)
+                axes[0].plot(freq_plot, np.abs(As_aligned), label=f'Injected not recovered', color='gray', linewidth=5, alpha=0.5, zorder=0)
                 axes[1].plot(freq_plot, (Es_aligned), label=f'Injected not recovered', color='gray', linewidth=5, alpha=0.5, zorder=0)
             else:
-                axes[0].plot(freq_plot, (As_aligned), color='gray', linewidth=5, alpha=0.5, zorder=0)
+                axes[0].plot(freq_plot, np.abs(As_aligned), color='gray', linewidth=5, alpha=0.5, zorder=0)
                 axes[1].plot(freq_plot, (Es_aligned), color='gray', linewidth=5, alpha=0.5, zorder=0)
 
         axes[0].set_xlim((self.lower_frequency)*10**3, (self.upper_frequency)*10**3)
         axes[0].legend(loc='lower left')
+        axes[0].set_yscale('log')
         axes[0].set_ylabel(f'TDI A')
         axes[1].set_xlim((self.lower_frequency)*10**3, (self.upper_frequency)*10**3)
         axes[1].legend(loc='lower left')

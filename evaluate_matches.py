@@ -34,7 +34,7 @@ from globalGB.search_utils_GB import GBConfig
 from DataLoader.data_loader import LISADataLoader
 
 from globalGB.search_utils_GB import PARAM_NAMES, PARAM_INDICES, frequency_derivative_mojito_lower, frequency_derivative_mojito_upper
-from globalGB.search_utils_GB import frequency_derivative_tyson_lower, frequency_derivative_tyson_upper, frequency_derivative
+from globalGB.search_utils_GB import frequency_derivative_tyson_lower, frequency_derivative_tyson_upper, frequency_derivative, frequency_derivative_mojito_lower_step
 jax.config.update('jax_default_device', jax.devices('cpu')[0])
 jax.config.update("jax_enable_x64", True)
 
@@ -165,18 +165,22 @@ mask_negative_frequency_derivative = parameters_to_plot[:,PARAM_INDICES['Frequen
 parameters_to_plot_negative_frequency_derivative = parameters_to_plot.filter(mask_negative_frequency_derivative)
 parameters_to_plot_positive_frequency_derivative = parameters_to_plot.filter(~mask_negative_frequency_derivative)
 plt.figure()
-plt.plot(loader.tdi_fs['freq'],np.abs(frequency_derivative_mojito_lower(loader.tdi_fs['freq'])),'k')
-plt.plot(loader.tdi_fs['freq'],np.abs(frequency_derivative_tyson_lower(loader.tdi_fs['freq'])),'k:')
+plt.plot(loader.tdi_fs['freq'],np.abs(frequency_derivative_mojito_lower(loader.tdi_fs['freq'])),'k', label='Mojito lower')
+plt.plot(loader.tdi_fs['freq'],np.abs(frequency_derivative_mojito_lower_step(loader.tdi_fs['freq'])),'k--', label='Mojito lower step')
+plt.plot(loader.tdi_fs['freq'],np.abs(frequency_derivative_tyson_lower(loader.tdi_fs['freq'])),'k:', label='Tyson lower')
 # plt.plot(loader.tdi_fs['freq'],np.abs(frequency_derivative(loader.tdi_fs['freq'], M_chirp_upper_boundary)),'r')
-plt.plot(loader.tdi_fs['freq'],np.abs(frequency_derivative_mojito_upper(loader.tdi_fs['freq'])),'r')
+plt.plot(loader.tdi_fs['freq'],np.abs(frequency_derivative_mojito_upper(loader.tdi_fs['freq'])),'r', label='Mojito upper')
 plt.plot(parameters_to_plot_negative_frequency_derivative[:,PARAM_INDICES['Frequency']],np.abs(parameters_to_plot_negative_frequency_derivative[:,PARAM_INDICES['FrequencyDerivative']]), '+', label = 'Injected not recovered', markersize= markersize, alpha = alpha, zorder = 0)
-plt.plot(parameters_to_plot_positive_frequency_derivative[:,PARAM_INDICES['Frequency']],parameters_to_plot_positive_frequency_derivative[:,PARAM_INDICES['FrequencyDerivative']], 'o', label = 'Injected not recovered', markersize= markersize, alpha = alpha, zorder = 0)
+# plt.plot(parameters_to_plot_positive_frequency_derivative[:,PARAM_INDICES['Frequency']],parameters_to_plot_positive_frequency_derivative[:,PARAM_INDICES['FrequencyDerivative']], 'o', label = 'Injected not recovered', markersize= markersize, alpha = alpha, zorder = 0)
 plt.yscale('log')
 plt.xscale('log')
 plt.xlabel('$f$ (Hz)')
 plt.xlim(0.0003,0.03)
 plt.ylim(10**-26,None)
+plt.legend(loc = 'lower left')
+plt.grid(True)
 plt.show(block=True)
+plt.close()
 
 #### plot
 markersize = 3
