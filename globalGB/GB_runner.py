@@ -136,6 +136,10 @@ class GBSearchRunner:
         self.Tobs = loader.Tobs
         self.t0 = loader.t0
 
+        # with h5py.File(self.datapath_residual, "r") as fid:
+        #     self.tdi_ts_residual = fid["residual"][:]
+        # self.tdi_fs_residual = {ch: np.fft.rfft(self.tdi_ts_residual[ch], axis=0) for ch in self.cfg.channel_combination}
+
         with h5py.File(self.datapath, "r") as fid:
             orbits_data = fid["orbits"]
             sampling = dict(orbits_data["sampling"].attrs)

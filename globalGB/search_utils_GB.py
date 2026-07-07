@@ -355,7 +355,7 @@ def gaussian_move_factor_GB(search, center_01, default_factor=None):
 
     sigma_f_hz = 1e-10  # f_smear from max_signal_bandwidth
     fd_scale = max(
-        abs(frequency_derivative_mojito_lower_reduced(f0)),
+        abs(frequency_derivative_mojito_lower(f0)),
         frequency_derivative_mojito_upper(f0),
     )
     sigma_fdot = 1e-17
@@ -422,7 +422,7 @@ def max_signal_bandwidth(frequency, Tobs, chandrasekhar_limit=1.4):
     """
     M_chirp_upper_boundary = (chandrasekhar_limit**2)**(3/5)/(2*chandrasekhar_limit)**(1/5)
     f_smear = frequency *2* 10**-4
-    max_frequency_derivative = max(np.abs(frequency_derivative_mojito_lower_reduced(frequency)), np.abs(frequency_derivative_mojito_upper(frequency)))
+    max_frequency_derivative = max(np.abs(frequency_derivative_mojito_lower(frequency)), np.abs(frequency_derivative_mojito_upper(frequency)))
     f_deviation = max_frequency_derivative*Tobs
     # window_length = np.max([f_smear, f_deviation])
     window_length = f_smear + f_deviation
@@ -587,7 +587,7 @@ class GB_Searcher:
         # snr = 1000
         # amplitude_upper = 2*snr/(Tobs * np.sin(f_0/ f_transfer)**2/self.SA[0])**0.5
         # amplitude = [amplitude_lower, amplitude_upper]
-        fd_range = [frequency_derivative_mojito_lower_reduced(lower_frequency),frequency_derivative_mojito_upper(upper_frequency)]
+        fd_range = [frequency_derivative_mojito_lower(lower_frequency),frequency_derivative_mojito_upper(upper_frequency)]
 
         self.boundaries = deepcopy(boundaries_dict)
         if 'Frequency' not in self.boundaries.keys():

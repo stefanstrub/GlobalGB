@@ -1,0 +1,23 @@
+{
+    "run_name": "CD1Lrun2",
+    "codename": "Umbrella",
+    "version": "v1",
+
+    "which_run": "global",
+    "input_h5": "",
+
+    "save_path": "",
+    "output_dir": "l3_submission",
+    "posterior_dir": "CD1Lrun2_Umbrella_v1_GB_posteriordir",
+    "grouped_sources_path": "",
+
+    "contact": "your.name@example.com",
+    "code_link": "https://gitlab.example.com/your-group/GlobalGB",
+    "input_reference": "Mojito",
+
+    "frequency_atol": 1e-12,
+    "pack_size": 20,
+    "store_estimated_parameters": false,
+    "store_inline_posteriors": false,
+    "store_pdf_files": null
+}

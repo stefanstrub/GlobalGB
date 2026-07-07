@@ -35,7 +35,7 @@ from globalGB.config import load_config
 from DataLoader.data_loader import LISADataLoader
 
 from globalGB.search_utils_GB import PARAM_NAMES, PARAM_INDICES, frequency_derivative_mojito_lower, frequency_derivative_mojito_upper
-from globalGB.search_utils_GB import frequency_derivative_tyson_lower, frequency_derivative_tyson_upper, frequency_derivative, frequency_derivative_mojito_lower_step
+# from globalGB.search_utils_GB import frequency_derivative_tyson_lower, frequency_derivative_tyson_upper, frequency_derivative, frequency_derivative_mojito_lower_step
 jax.config.update('jax_default_device', jax.devices('cpu')[0])
 jax.config.update("jax_enable_x64", True)
 
@@ -65,11 +65,11 @@ channel_combination = 'AET'
 config = GBConfig(load_config())
 loader = LISADataLoader(config=config)
 data_fn = config.data_path
-loader.load(data_fn, dt=dt, channel_combination=channel_combination)
+# loader.load(data_fn, dt=dt, channel_combination=channel_combination)
 loader._load_mojito_wdwd_catalog()
 parameters_injected = pl.DataFrame(loader.catalog_wdwd, schema=PARAM_NAMES)
 
-t0 = loader.t0
+# t0 = loader.t0
 save_name_injected = 'Mojito_WDWD'
 max_number_of_injected_signals_per_window = 100
 

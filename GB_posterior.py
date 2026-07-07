@@ -267,47 +267,48 @@ def main(argv=None):
         del chains, chains_nan_rows_removed, chains_t_init, initial_parameters_t_init, gb_pe
 
 
-    # # load chains
-    # group_index = 1171 # 2431
-    # group = grouped_found_sources[group_index]
-    # frequency_range = group['frequency_range']
-    # chains_fn = savepath + f'/CD1Lrun2_Umbrella_v1_GB_posteriordir/CD1Lrun2_Umbrella_v1_GB_posteriors{len(chains_t_init)}_{group_index}.h5'
-    # with h5py.File(chains_fn, 'r') as f:
-    #     g = f["chains"]
-    #     chains_t_init = [g[k][:] for k in sorted(g.keys(), key=lambda s: int(s.split("_")[1]))]
-    #     initial_parameters = f['initial_parameters'][:]
-    #     frequency_range_min = f.attrs['frequency_range_min']
-    #     frequency_range_max = f.attrs['frequency_range_max']
-    #     t0 = f.attrs['t0']
-    #     t_init = f.attrs['t_init']
-    #     time_taken = f.attrs['time_taken']
-    #     parameter_names = f.attrs['parameter_names']
+    # load chains
+    group_index = 1171 # 2431
+    group = grouped_found_sources[group_index]
+    frequency_range = group['frequency_range']
+    chains_fn = savepath + f'/CD1Lrun2_Umbrella_v1_GB_posteriordir/CD1Lrun2_Umbrella_v1_GB_posteriors2_{group_index}.h5'
+    with h5py.File(chains_fn, 'r') as f:
+        g = f["chains"]
+        chains_t_init = [g[k][:] for k in sorted(g.keys(), key=lambda s: int(s.split("_")[1]))]
+        initial_parameters = f['initial_parameters'][:]
+        frequency_range_min = f.attrs['frequency_range_min']
+        frequency_range_max = f.attrs['frequency_range_max']
+        t0 = f.attrs['t0']
+        t_init = f.attrs['t_init']
+        time_taken = f.attrs['time_taken']
+        parameter_names = f.attrs['parameter_names']
     
     
-    # # plot the chains
-    # chains_plot = chains_t_init[0]
-    # fig = plt.figure()
-    # for i in range(chains_plot.shape[1]):
-    #     plt.plot(chains_plot[:,i]-chains_plot[0,i], label=PARAM_NAMES[i])
-    # plt.legend()
-    # plt.show(block=True)
+    # plot the chains
+    chains_plot = chains_t_init[0]
+    fig = plt.figure()
+    for i in range(chains_plot.shape[1]):
+        plt.plot(chains_plot[:,i]-chains_plot[0,i], label=PARAM_NAMES[i])
+    plt.legend()
+    plt.show(block=True)
 
-    # # swap Frequency and Amplitude
-    # chains_plot_swapped = chains_plot[:, [2, 0, 1, 3, 4, 5, 6, 7]]
-    # new_param_names = [
-    # "Amplitude",
-    # "Frequency",
-    # "FrequencyDerivative",
-    # "RightAscension",
-    # "Declination",
-    # "Polarization",
-    # "Inclination",
-    # "InitialPhase",
-    # ]
-    # fig = corner.corner(chains_plot_swapped, labels=new_param_names, truths=injected_sources[0, [2, 0, 1, 3, 4, 5, 6, 7]], smooth=True, smooth1d=True)
-    # # corner.corner(chains_nan_rows_removed1, color='r', labels=PARAM_NAMES, fig=fig)
+    # swap Frequency and Amplitude
+    chains_plot_swapped = chains_plot[:, [2, 0, 1, 3, 4, 5, 6, 7]]
+    new_param_names = [
+    "Amplitude",
+    "Frequency",
+    "FrequencyDerivative",
+    "RightAscension",
+    "Declination",
+    "Polarization",
+    "Inclination",
+    "InitialPhase",
+    ]
+    new_param_labels = [r'A', r'f', r'$\dot{f}$', r'$\alpha$', r'$\delta$', r'$\psi$', r'$\iota$', r'$\phi_0$']
+    fig = corner.corner(chains_plot_swapped, labels=new_param_labels, truths=injected_sources[0, [2, 0, 1, 3, 4, 5, 6, 7]], smooth=True, smooth1d=True)
+    # corner.corner(chains_nan_rows_removed1, color='r', labels=PARAM_NAMES, fig=fig)
     # plt.tight_layout()
-    # plt.show(block=True)
+    plt.show(block=True)
     
 if __name__ == "__main__":
     main(argv=sys.argv[1:])
