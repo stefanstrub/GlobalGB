@@ -223,7 +223,7 @@ def main(argv=None):
             channel_combination=config.channel_combination
         )
         start_time = time.time()
-        chains, ensemble = gb_pe.eryn_mcmc_GB(nsteps=3000, burn=0, ntemps=4, nwalkers=4, nleaves_max=len(initial_parameters)+1)
+        chains, ensemble = gb_pe.eryn_mcmc_GB(nsteps=3000, burn=0, ntemps=4, nwalkers=4, nleaves_max=len(initial_parameters))
         # chains, acceptance_fraction = gb_pe.MH_mcmc_GB(nsteps=20000, burn=1000, ntemps=1, nwalkers=5)
         # chains, n_signals_chain, acceptance_fraction = gb_pe.RJMCMC_GB(nsteps=10000, burn=1000, birth_weight=0, death_weight=0, ntemps=1, nwalkers=1, n_max=len(initial_parameters))
         # chains = np.concatenate(chains, axis=0)

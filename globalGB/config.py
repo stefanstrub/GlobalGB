@@ -86,28 +86,13 @@ def mojito_preprocessing_pipeline_kwargs(dt: float) -> dict[str, Any]:
     """
     Return Mojito preprocessing pipeline kwargs used by ``LISADataLoader``.
 
-    Values match ``DataLoader.data_loader.LISADataLoader._load_mojito``.
+    Delegates to :func:`mojito_barkeeper.defaults.mojito_preprocessing_pipeline_kwargs`.
     """
-    target_fs = 1.0 / dt
-    return {
-        "downsample_kwargs": {
-            "target_fs": target_fs,
-            "kaiser_window": 31.0,
-        },
-        "filter_kwargs": {
-            "highpass_cutoff": 5e-6,
-            "lowpass_cutoff": 0.5 * target_fs,
-            "order": 2,
-            "zero_phase": True,
-        },
-        "trim_kwargs": {
-            "fraction": 0.02,
-        },
-        "window_kwargs": {
-            "window": "tukey",
-            "alpha": 0.0125,
-        },
-    }
+    from mojito_barkeeper.defaults import (
+        mojito_preprocessing_pipeline_kwargs as _pipeline_kwargs,
+    )
+
+    return _pipeline_kwargs(dt)
 
 
 def build_preprocessing_metadata(

@@ -27,6 +27,7 @@ dependencies = [
     "lisa-data-challenge",
     "mojito-processor",
     "mojito",
+    "mojito_barkeeper @ file:./mojito_barkeeper-develop",
 ]
 
 [project.optional-dependencies]
@@ -42,6 +43,7 @@ ldc-gb-merge = "merge_GB_signal_files:main"
 ldc-gb-match = "match_GBs:main"
 ldc-gb-posterior = "GB_posterior:main"
 ldc-gb-residual = "residual:main"
+mojito-barkeeper-gui = "mojito_barkeeper.gui:main"
 
 [project.urls]
 Repository = "https://github.com/stefanstrub/LDC"
