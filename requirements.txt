@@ -14,3 +14,4 @@ xarray
 lisa-data-challenge
 mojito-processor
 mojito
+-e ./mojito_barkeeper

@@ -27,7 +27,7 @@ dependencies = [
     "lisa-data-challenge",
     "mojito-processor",
     "mojito",
-    "mojito_barkeeper @ file:./mojito_barkeeper-develop",
+    "mojito_barkeeper @ file:./mojito_barkeeper",
 ]
 
 [project.optional-dependencies]
