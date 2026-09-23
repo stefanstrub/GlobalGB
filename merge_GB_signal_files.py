@@ -130,7 +130,7 @@ def main(argv: list[str] | None = None) -> None:
         raise RuntimeError(f"No files found in input directory: {input_dir}")
 
     raw_sources = [
-        load_sources_from_file(os.path.join(input_dir, fname)) for fname in [file_names[28]]
+        load_sources_from_file(os.path.join(input_dir, fname)) for fname in file_names
     ]
 
     flat_sources, wall_times, number_of_evaluations = flatten_found_sources(raw_sources)

@@ -6,6 +6,8 @@ __pycache__/
 .eggs*/
 dist*/
 build*/
+l2l3_datamodel-develop/
+l3_submission/
 
 # IDE
 .vscode/
@@ -13,6 +15,7 @@ build*/
 
 # Local config
 globalGB/GB_search_config.json
+globalGB/GB_l2l3_config.json
 
 # Data (if large/generated)
 *.h5

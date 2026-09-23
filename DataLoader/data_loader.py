@@ -12,6 +12,7 @@ from ldc.common.tools import window
 from MojitoProcessor import process_pipeline
 from mojito import MojitoL1File
 from globalGB.search_utils_GB import GBConfig
+from globalGB.config import mojito_preprocessing_pipeline_kwargs
 
 
 class LISADataLoader:
@@ -271,47 +272,17 @@ class LISADataLoader:
         n_samples = len(data["tdis"]["X"])
         duration = n_samples * data["dt"]
         self.Tobs_original = float(duration)
-        # ── Pipeline parameters ───────────────────────────────────────────────────────
+        pipeline_kwargs = mojito_preprocessing_pipeline_kwargs(self.dt)
+        downsample_kwargs = pipeline_kwargs["downsample_kwargs"]
+        filter_kwargs = dict(pipeline_kwargs["filter_kwargs"])
+        trim_kwargs = pipeline_kwargs["trim_kwargs"]
+        window_kwargs = pipeline_kwargs["window_kwargs"]
 
-        # Downsampling parameters
-        downsample_kwargs = {
-            "target_fs": 1/self.dt,  # Hz — target sampling rate (None = no downsampling).
-            "kaiser_window": 31.0,  # Kaiser window beta parameter (higher = more aggressive anti-aliasing)
-        }
+        Nyquist_data = 1 / (2 * data["dt"])
+        if filter_kwargs["lowpass_cutoff"] == Nyquist_data:
+            filter_kwargs["lowpass_cutoff"] = None
 
-        # Filter parameters
-        filter_kwargs = {
-            "highpass_cutoff": 5e-6,  # Hz — high-pass cutoff (always applied)
-            "lowpass_cutoff": 0.5 # half of the target sampling rate in Hz
-            * downsample_kwargs[
-                "target_fs"
-            ],  # Hz — low-pass cutoff (set None for high-pass only)
-            "order": 2,  # Butterworth filter order
-        }
-
-        Nyquist_data = 1/(2*data["dt"])
-        if filter_kwargs['lowpass_cutoff'] == Nyquist_data:
-            filter_kwargs['lowpass_cutoff'] = None
-
-        # Trim parameters
-        trim_kwargs = {
-            "fraction": 0.02,  # Fraction of post-downsample duration trimmed from each end.
-            # Total amount of data remaining is (1 - fraction) * N, for N
-            # the number of samples after downsampling.
-        }
-
-
-
-        # Window parameters
-        window_kwargs = {
-            "window": "tukey",  # Window type: 'tukey', 'hann', 'hamming', 'blackman'
-            "alpha": 0.0125,  # Taper fraction for Tukey window
-        }
-        # ─────────────────────────────────────
-
-
-
-        processed_segments =process_pipeline(
+        processed_segments = process_pipeline(
             data,
             downsample_kwargs=downsample_kwargs,
             filter_kwargs=filter_kwargs,
