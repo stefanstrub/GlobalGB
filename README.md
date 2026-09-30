@@ -60,13 +60,13 @@ Example:
 ```json
 {
   "data_set": "Mojito",
-  "dt": 2.5,
+  "dt": 10,
   "snr_threshold": 9.0,
   "tdi_generation": 2,
   "max_signals_per_window": 10,
   "max_signals_per_window_first_run": 3,
   "channel_combination": "AET",
-  "frequency_range": [0.0003, 0.05],
+  "frequency_range": [0.0003, 0.025],
   "seed": 1,
   "batch_size": 10,
   "data_path": "/path/to/data.h5",
