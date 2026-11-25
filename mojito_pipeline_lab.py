@@ -1,7 +1,7 @@
 """
 Backward-compatible re-export of :mod:`mojito_barkeeper.lab`.
 
-Install the ``mojito_barkeeper`` package from ``mojito_barkeeper-develop/`` and
+Install the ``mojito_barkeeper`` package from ``mojito_barkeeper/`` and
 import from ``mojito_barkeeper`` directly.
 """
 

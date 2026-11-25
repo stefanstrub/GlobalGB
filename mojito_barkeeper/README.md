@@ -118,7 +118,7 @@ pytest
 ## Package layout
 
 ```
-mojito_barkeeper-develop/
+mojito_barkeeper/
 ├── README.md
 ├── pyproject.toml
 ├── requirements.txt

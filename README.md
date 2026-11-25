@@ -10,19 +10,8 @@ conda activate global_gb
 ```
 
 ```
-pip install -e .
-```
-
-The repository includes the standalone **`mojito_barkeeper`** package under
-`mojito_barkeeper-develop/` (Mojito L1 load/combine/preprocess GUI and library).
-It is installed automatically with GlobalGB. See
-[`mojito_barkeeper-develop/README.md`](mojito_barkeeper-develop/README.md) for
-details; launch the GUI with `mojito-barkeeper-gui`.
-
-Or install dependencies only:
-
-```
 pip install -r requirements.txt
+pip install -e .
 ```
 
 Copy the example config and edit paths:
@@ -60,7 +49,7 @@ Example:
 ```json
 {
   "data_set": "Mojito",
-  "dt": 10,
+  "dt": 10.0,
   "snr_threshold": 9.0,
   "tdi_generation": 2,
   "max_signals_per_window": 10,
