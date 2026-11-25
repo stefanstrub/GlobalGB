@@ -15,7 +15,7 @@ l3_submission/
 
 # Local config
 globalGB/GB_search_config.json
-# globalGB/GB_l2l3_config.json
+globalGB/GB_l2l3_config.json
 
 # Data (if large/generated)
 *.h5
